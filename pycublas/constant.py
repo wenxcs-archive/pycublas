@@ -2,6 +2,8 @@ import os
 import sys
 import ctypes
 
+# https://github.com/tpn/cuda-samples/blob/master/v12.0/include/cublas_api.h
+
 CUBLAS_OP = {
     0: 0,  # CUBLAS_OP_N
     "n": 0,
