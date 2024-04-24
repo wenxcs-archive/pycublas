@@ -22,12 +22,12 @@ def test_simple_gemm_bf16_fp32():
     cublas.cublasGemmEX(
         handle,
         1, 0,
-        N, M, M,
+        N, M, K,
         pycublas.constant.bfloat16_one,
-        B.data_ptr(), "CUDA_R_16BF", N,
-        A.data_ptr(), "CUDA_R_16BF", M,
+        B.data_ptr(), "CUDA_R_16BF", K,
+        A.data_ptr(), "CUDA_R_16BF", K,
         pycublas.constant.bfloat16_one,
-        C.data_ptr(), "CUDA_R_32F", M,
+        C.data_ptr(), "CUDA_R_32F", N,
         "CUBLAS_COMPUTE_32F_FAST_16BF",
         "CUBLAS_GEMM_DEFAULT_TENSOR_OP"
     )
