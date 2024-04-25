@@ -1,6 +1,7 @@
 # This is a tailored version modified from scikit-cuda project
 # under the BSD License.
 import ctypes
+import os
 import sys
 import pycublas.exception as exceptions
 import pycublas.constant as constant
@@ -22,7 +23,12 @@ class CublasInterop:
     def __init__(self, cublas_libname: str = "libcublas.so"):
         if "linux" not in sys.platform:
             raise RuntimeError("unsupported platform")
+
         self._libcublas_libname = cublas_libname
+
+        if "CUBLAS_LIBNAME" in os.environ:
+            self._libcublas_libname = os.environ["CUBLAS_LIBNAME"]
+
         self._libcublas = ctypes.cdll.LoadLibrary(self._libcublas_libname)
         if self._libcublas == None:
             raise OSError("cublas library not found")
