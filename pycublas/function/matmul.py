@@ -1,5 +1,6 @@
 import torch
 import pycublas
+import pycublas.constant
 
 cublas = pycublas.interop.CublasInterop()
 
@@ -43,7 +44,11 @@ class matmul_nt_bf16_fp32(torch.autograd.Function):
             A.data_ptr(),
             "CUDA_R_16BF",
             K,
-            pycublas.constant.float32_one,
+            (
+                pycublas.constant.float32_one
+                if C is not None
+                else pycublas.constant.float32_zero
+            ),
             C.data_ptr(),
             "CUDA_R_32F",
             N,
@@ -93,7 +98,11 @@ class matmul_nn_bf16_fp32(torch.autograd.Function):
             A.data_ptr(),
             "CUDA_R_16BF",
             K,
-            pycublas.constant.float32_one,
+            (
+                pycublas.constant.float32_one
+                if C is not None
+                else pycublas.constant.float32_zero
+            ),
             C.data_ptr(),
             "CUDA_R_32F",
             N,
