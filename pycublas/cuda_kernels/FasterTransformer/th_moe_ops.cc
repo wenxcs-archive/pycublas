@@ -37,7 +37,7 @@ namespace torch_ext
     template <typename T>
     T* get_ptr(Tensor t)
     {
-        return t.data_ptr<T>();
+        return (T*)t.data_ptr();
     }
 
     template <typename T, typename WeightType>

@@ -72,8 +72,9 @@ if cuda_arch == 800:
                 name=f"{project_name}.fasttransformer_moe_sparse_gemm",
                 sources=[
                     f"{project_name}/cuda_kernels/FasterTransformer/moe_gemm_kernels_bf16_fp8.cu",
-                    f"{project_name}/cuda_kernels/FasterTransformer/cutlass_heuristic.cu",
+                    f"{project_name}/cuda_kernels/FasterTransformer/cutlass_heuristic.cc",
                     f"{project_name}/cuda_kernels/FasterTransformer/th_moe_ops.cc",
+                    f"{project_name}/cuda_kernels/FasterTransformer/logger.cc",
                 ],
                 include_dirs=[os.path.join(project_path, f"{project_name}/cuda_kernels/FasterTransformer/"),
                               os.path.join(project_path, f"{project_name}/cuda_kernels/FasterTransformer/cutlass_extensions/include"),
