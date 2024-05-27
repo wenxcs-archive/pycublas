@@ -32,6 +32,8 @@
 #include <cstdio>
 #include <cassert>
 
+#include <torch/extension.h>
+
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 
@@ -157,7 +159,7 @@ sparse_gemm(char transA, char transB, int m, int n, int k,
   assert(false && "Not implemented");
 }
 
-
+/*
 int main(int argc, char** argv)
 {
   cudaDeviceProp props;
@@ -267,4 +269,48 @@ int main(int argc, char** argv)
   printf("CUTE_GEMM:     [%6.1f]GFlop/s  (%6.4f)ms\n", gflops / cute_time, cute_time*1000);
 
   return 0;
+}
+*/
+
+namespace cuda_kernels{
+void vllm_sparse_moe_gemm_kernel(
+    torch::Tensor activation,
+    torch::Tensor weight,
+    torch::Tensor w_scales,
+    torch::Tensor topk_weight,
+    torch::Tensor sorted_token_ids,
+    torch::Tensor expert_ids,
+    torch::Tensor num_tokens_post_padded,
+    int num_valid_tokens,
+    int block_m_size,
+    int64_t stream)
+{
+  TORCH_CHECK(activation.is_cuda(), "activation must be a CUDA tensor");
+  TORCH_CHECK(weight.is_cuda(), "weight must be a CUDA tensor");
+  TORCH_CHECK(w_scales.is_cuda(), "w_scales must be a CUDA tensor");
+  TORCH_CHECK(topk_weight.is_cuda(), "topk_weight must be a CUDA tensor");
+  TORCH_CHECK(sorted_token_ids.is_cuda(), "sorted_token_ids must be a CUDA tensor");
+  TORCH_CHECK(expert_ids.is_cuda(), "expert_ids must be a CUDA tensor");
+  TORCH_CHECK(num_tokens_post_padded.is_cuda(), "num_tokens_post_padded must be a CUDA tensor");
+
+  TORCH_CHECK(activation.dtype() == torch::kHalf, "activation must be half");
+  TORCH_CHECK(weight.dtype() == torch::kUInt8, "weight must be fp8(uint8)");
+  TORCH_CHECK(w_scales.dtype() == torch::kHalf, "w_scales must be half");
+  TORCH_CHECK(topk_weight.dtype() == torch::kHalf, "topk_weight must be half");
+  TORCH_CHECK(sorted_token_ids.dtype() == torch::kInt32, "sorted_token_ids must be int32");
+  TORCH_CHECK(expert_ids.dtype() == torch::kInt32, "expert_ids must be int32");
+  TORCH_CHECK(num_tokens_post_padded.dtype() == torch::kInt32, "num_tokens_post_padded must be int32");
+
+  auto M = activation.size(0);
+  auto H = activation.size(1);
+  auto I = weight.size(1);
+  auto E = weight.size(0);
+
+  TORCH_CHECK(H == weight.size(2), "weight shape mismatch");
+}
+}
+
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
+{
+  m.def(vllm_sparse_moe_gemm_kernel, &cuda_kernels::vllm_sparse_moe_gemm_kernel, "");
 }

@@ -37,7 +37,7 @@ if cuda_arch == 800:
         ext_modules.append(cpp_extension.CUDAExtension(
                 name=f"{project_name}.vllm_moe_sparse_gemm",
                 sources=[
-                    f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/kernels_sm80.cu",
+                    f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/sparse_moe_gemm_kernel_sm80.cu",
                 ],
                 include_dirs=[f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/",
                             os.path.join(cutlass_path, "tools/util/include"),
