@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #define ENABLE_BF16
+#define BUILD_CUTLASS_MOE
 
 #include "cutlass_heuristic.h"
 #include "utils/cuda_bf16_wrapper.h"

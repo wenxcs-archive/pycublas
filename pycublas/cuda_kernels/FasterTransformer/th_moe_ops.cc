@@ -15,6 +15,7 @@
  */
 
 #define ENABLE_BF16
+#define BUILD_CUTLASS_MOE
 
 #include <iostream>
 #include <vector>

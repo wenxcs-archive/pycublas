@@ -63,7 +63,6 @@ struct FastInterleavedAndBiasedNumericArrayConverter<half_t, uint8_t, 4> {
         uint32_t*      h   = reinterpret_cast<uint32_t*>(&result);
         uint32_t const i8s = reinterpret_cast<uint32_t const&>(source);
 
-        /*
         static constexpr uint32_t mask_for_elt_01     = 0x5250;
         static constexpr uint32_t mask_for_elt_23     = 0x5351;
         static constexpr uint32_t start_byte_for_fp16 = 0x64646464;
@@ -74,8 +73,8 @@ struct FastInterleavedAndBiasedNumericArrayConverter<half_t, uint8_t, 4> {
         static constexpr uint32_t I8s_TO_F16s_MAGIC_NUM = 0x64806480;
         asm volatile("sub.f16x2 %0, %1, %2;\n" : "=r"(h[0]) : "r"(h[0]), "r"(I8s_TO_F16s_MAGIC_NUM));
         asm volatile("sub.f16x2 %0, %1, %2;\n" : "=r"(h[1]) : "r"(h[1]), "r"(I8s_TO_F16s_MAGIC_NUM));
-        */
 
+        /*
         int a0, a1, b0, b1;
         asm volatile("prmt.b32 %0, 0, $1, 0x5040;" : "=r"(a0) : "r"(i8s));
         asm volatile("prmt.b32 %0, 0, $1, 0x7060;" : "=r"(a1) : "r"(i8s));
@@ -87,6 +86,7 @@ struct FastInterleavedAndBiasedNumericArrayConverter<half_t, uint8_t, 4> {
         asm volatile("add.u32  %0, %1, 0x20002000;" : "=r"(b1) : "r"(b1));
         asm volatile("lop3.b32 %0, %1, 0x80008000, %2, 0xf8;" : "=r"(h[0]) : "r"(b0), "r"(a0));
         asm volatile("lop3.b32 %0, %1, 0x80008000, %2, 0xf8;" : "=r"(h[1]) : "r"(b1), "r"(a1));
+        */
         return result;
     }
 

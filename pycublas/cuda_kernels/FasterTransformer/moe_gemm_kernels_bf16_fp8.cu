@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #define ENABLE_BF16
+#define BUILD_CUTLASS_MOE
 
 #include "moe_gemm_kernels_template.h"
 
