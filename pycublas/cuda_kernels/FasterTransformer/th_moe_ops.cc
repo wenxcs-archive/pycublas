@@ -42,12 +42,10 @@ namespace torch_ext
     }
 
     template <typename T, typename WeightType>
-    Tensor grouped_gemm_bias_helper(Tensor activations,
+    Tensor grouped_gemm_helper(Tensor activations,
                                     Tensor weights,
                                     Tensor weight_scales,
-                                    Tensor biases,
-                                    Tensor rows_per_expert,
-                                    fastertransformer::ActivationType activation_type)
+                                    Tensor rows_per_expert)
     {
         const at::ScalarType _st = activations.scalar_type();
         auto stream = at::cuda::getCurrentCUDAStream().stream();
@@ -83,65 +81,48 @@ namespace torch_ext
         TORCH_CHECK(result == cudaSuccess, "Second memcpy failed");
 
         T *act_ptr = get_ptr<T>(activations);
-        T *bias_ptr = get_ptr<T>(biases);
         T *res_ptr = get_ptr<T>(res);
         T *weight_scale_ptr = get_ptr<T>(weight_scales);
 
         fastertransformer::MoeGemmRunner<T, WeightType> moe_gemm_runner;
         WeightType *wt_ptr = get_ptr<WeightType>(weights);
 
-        moe_gemm_runner.moe_gemm_bias_act(act_ptr,
-                                          wt_ptr,
-                                          weight_scale_ptr,
-                                          bias_ptr,
-                                          res_ptr,
-                                          total_rows_before_expert_ptr,
-                                          num_rows,
-                                          gemm_n,
-                                          gemm_k,
-                                          experts,
-                                          activation_type,
-                                          stream);
+        moe_gemm_runner.moe_gemm(act_ptr,
+                                wt_ptr,
+                                weight_scale_ptr,
+                                res_ptr,
+                                total_rows_before_expert_ptr,
+                                num_rows,
+                                gemm_n,
+                                gemm_k,
+                                experts,
+                                stream);
 
         return res;
     }
 
-    Tensor grouped_gemm_bias(Tensor activations,
+    Tensor grouped_gemm(Tensor activations,
                              Tensor weights,
                              Tensor weight_scales,
-                             Tensor biases,
-                             Tensor rows_per_expert,
-                             std::string activation_type_str)
+                             Tensor rows_per_expert)
     {
 
         const at::ScalarType _st = activations.scalar_type();
         CHECK_INPUT(activations, _st);
-        CHECK_INPUT(biases, _st);
         CHECK_INPUT(weight_scales, _st);
         CHECK_INPUT(rows_per_expert, torch::kInt32);
 
         const bool is_packed_int4s = weights.size(-1) == weight_scales.size(-1) / 2;
 
-        fastertransformer::ActivationType activation_type = fastertransformer::ActivationType::InvalidType;
-        if (activation_type_str == "identity")
-        {
-            activation_type = fastertransformer::ActivationType::Identity;
-        }
-        else
-        {
-            activation_type = fastertransformer::getActivationType(activation_type_str);
-        }
-
         switch (_st)
         {
-#ifdef ENABLE_BF16
-        case at::ScalarType::BFloat16:
+        case at::ScalarType::Half:
         {
             if (weights.scalar_type() == torch::kInt8 && !is_packed_int4s)
             {
                 CHECK_INPUT(weights, torch::kInt8);
-                return grouped_gemm_bias_helper<__nv_bfloat16, uint8_t>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
+                return grouped_gemm_helper<__half, uint8_t>(
+                    activations, weights, weight_scales, rows_per_expert);
             }
             else
             {
@@ -150,7 +131,6 @@ namespace torch_ext
             }
             break;
         }
-#endif
         default:
             TORCH_CHECK(false, "Incompatible tensor type for grouped gemm bias");
         }
@@ -161,5 +141,5 @@ namespace torch_ext
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
-    m.def("grouped_gemm_bias", &torch_ext::grouped_gemm_bias, "Grouped GEMM with bias");
+    m.def("grouped_gemm", &torch_ext::grouped_gemm, "Grouped GEMM with bias");
 }
