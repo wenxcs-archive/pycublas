@@ -20,30 +20,8 @@ if not os.path.exists(cutlass_path):
 else:
     logger.info("Cutlass repository already exists.")
 
-os.environ["C_INCLUDE_PATH"] = (
-    os.path.join(cutlass_path, "tools/util/include")
-    + ":"
-    + os.path.join(cutlass_path, "include")
-    + ":"
-    + os.environ.get("C_INCLUDE_PATH", "")
-)
-os.environ["CPLUS_INCLUDE_PATH"] = (
-    os.path.join(cutlass_path, "tools/util/include")
-    + ":"
-    + os.path.join(cutlass_path, "include")
-    + ":"
-    + os.environ.get("CPLUS_INCLUDE_PATH", "")
-)
-os.environ["CPATH"] = (
-    os.path.join(cutlass_path, "tools/util/include")
-    + ":"
-    + os.path.join(cutlass_path, "include")
-    + ":"
-    + os.environ.get("CPATH", "")
-)
 if shutil.which("ninja") is None:
     raise RuntimeError("The ninja is not found. ")
-
     
 project_name = "pycublas"
 version = "0.1"
@@ -60,7 +38,9 @@ if cuda_arch == 800:
             sources=[
                 f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/kernels_sm80.cu",
             ],
-            include_dirs=[f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/"],
+            include_dirs=[f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/",
+                          os.path.join(cutlass_path, "tools/util/include"),
+                          os.path.join(cutlass_path, "include")],
             extra_link_args=[
                 "-lcuda",
                 "-lculibos",
@@ -82,32 +62,43 @@ if cuda_arch == 800:
             },
         ))
 
-    ext_modules.append(cpp_extension.CUDAExtension(
-            name=f"{project_name}.fasttransformer_moe_sparse_gemm",
-            sources=[
-                f"{project_name}/cuda_kernels/FasterTransformer/moe_gemm_kernels_bf16_fp8.cu",
-            ],
-            include_dirs=[f"{project_name}/cuda_kernels/FasterTransformer/"],
-            extra_link_args=[
-                "-lcuda",
-                "-lculibos",
-                "-lcudart",
-                "-lcudart_static",
-                "-lrt",
-                "-lpthread",
-                "-ldl",
-                "-L/usr/lib/x86_64-linux-gnu/",
-            ],
-            extra_compile_args={
-                "cxx": ["-std=c++17", "-O3"],
-                "nvcc": [
-                    "-O3",
-                    "-std=c++17",
-                    "-DCUDA_ARCH=80",
-                    "-gencode=arch=compute_80,code=compute_80",
+    if True:
+        # Build faster transformer MOE
+        ft_cutlass_path = f"{project_name}/cuda_kernels/FasterTransformer/cutlass"
+        if not os.path.exists(ft_cutlass_path):
+            ft_cutlass = Repo.clone_from("https://github.com/NVIDIA/cutlass.git", ft_cutlass_path)
+            ft_cutlass.git.checkout("cc85b64cf676c45f98a17e3a47c0aafcf817f088")
+        ext_modules.append(cpp_extension.CUDAExtension(
+                name=f"{project_name}.fasttransformer_moe_sparse_gemm",
+                sources=[
+                    f"{project_name}/cuda_kernels/FasterTransformer/moe_gemm_kernels_bf16_fp8.cu",
+                    f"{project_name}/cuda_kernels/FasterTransformer/cutlass_heuristic.cu",
+                    f"{project_name}/cuda_kernels/FasterTransformer/th_moe_ops.cc",
                 ],
-            },
-        ))
+                include_dirs=[f"{project_name}/cuda_kernels/FasterTransformer/",
+                              os.path.join(ft_cutlass_path, "tools/util/include"),
+                              os.path.join(ft_cutlass_path, "include")
+                            ],
+                extra_link_args=[
+                    "-lcuda",
+                    "-lculibos",
+                    "-lcudart",
+                    "-lcudart_static",
+                    "-lrt",
+                    "-lpthread",
+                    "-ldl",
+                    "-L/usr/lib/x86_64-linux-gnu/",
+                ],
+                extra_compile_args={
+                    "cxx": ["-std=c++17", "-O3"],
+                    "nvcc": [
+                        "-O3",
+                        "-std=c++17",
+                        "-DCUDA_ARCH=80",
+                        "-gencode=arch=compute_80,code=compute_80",
+                    ],
+                },
+            ))
 
 with open('requirements.txt') as f:
     required = f.read().splitlines()

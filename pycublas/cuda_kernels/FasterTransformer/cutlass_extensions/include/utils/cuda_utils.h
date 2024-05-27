@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "3rdparty/INIReader.h"
+#include "utils/INIReader.h"
 #include "utils/cuda_bf16_wrapper.h"
 #include "utils/logger.h"
 

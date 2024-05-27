@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#define ENABLE_BF16
 
 #include "moe_gemm_kernels_template.h"
 
