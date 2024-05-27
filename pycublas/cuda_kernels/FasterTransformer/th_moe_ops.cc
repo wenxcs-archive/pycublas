@@ -24,16 +24,22 @@
 #include <torch/script.h>
 
 #include "moe_gemm_kernels.h"
-#include "src/fastertransformer/kernels/moe_kernels.h"
-#include "src/fastertransformer/th_op/th_utils.h"
 #include "utils/cuda_bf16_wrapper.h"
 
 #include "cutlass/numeric_types.h"
 
 using torch::Tensor;
 
+#define CHECK_INPUT(x, y) TORCH_CHECK(x.scalar_type() == y, #x " must be of type " #y)
+
 namespace torch_ext
 {
+    template <typename T>
+    T* get_ptr(Tensor t)
+    {
+        return t.data_ptr<T>();
+    }
+
     template <typename T, typename WeightType>
     Tensor grouped_gemm_bias_helper(Tensor activations,
                                     Tensor weights,
@@ -127,67 +133,13 @@ namespace torch_ext
 
         switch (_st)
         {
-        case at::ScalarType::Float:
-        {
-            if (weights.scalar_type() == _st)
-            {
-                CHECK_INPUT(weights, torch::kFloat32);
-                return grouped_gemm_bias_helper<float, float>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
-            }
-            else
-            {
-                std::string err_msg = "Unsupported weight type " + std::string(at::toString(weights.scalar_type()));
-                TORCH_CHECK(false, err_msg);
-            }
-            break;
-        }
-        case at::ScalarType::Half:
-        {
-            if (weights.scalar_type() == _st)
-            {
-                CHECK_INPUT(weights, torch::kFloat16);
-                return grouped_gemm_bias_helper<half, half>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
-            }
-            else if (weights.scalar_type() == torch::kInt8 && !is_packed_int4s)
-            {
-                CHECK_INPUT(weights, torch::kInt8);
-                return grouped_gemm_bias_helper<half, uint8_t>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
-            }
-            else if (weights.scalar_type() == torch::kInt8 && is_packed_int4s)
-            {
-                CHECK_INPUT(weights, torch::kInt8);
-                return grouped_gemm_bias_helper<half, cutlass::uint4b_t>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
-            }
-            else
-            {
-                std::string err_msg = "Unsupported weight type " + std::string(at::toString(weights.scalar_type()));
-                TORCH_CHECK(false, err_msg);
-            }
-            break;
-        }
 #ifdef ENABLE_BF16
         case at::ScalarType::BFloat16:
         {
-            if (weights.scalar_type() == _st)
-            {
-                CHECK_INPUT(weights, torch::kBFloat16);
-                return grouped_gemm_bias_helper<__nv_bfloat16, __nv_bfloat16>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
-            }
-            else if (weights.scalar_type() == torch::kInt8 && !is_packed_int4s)
+            if (weights.scalar_type() == torch::kInt8 && !is_packed_int4s)
             {
                 CHECK_INPUT(weights, torch::kInt8);
                 return grouped_gemm_bias_helper<__nv_bfloat16, uint8_t>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
-            }
-            else if (weights.scalar_type() == torch::kInt8 && is_packed_int4s)
-            {
-                CHECK_INPUT(weights, torch::kInt8);
-                return grouped_gemm_bias_helper<__nv_bfloat16, cutlass::uint4b_t>(
                     activations, weights, weight_scales, biases, rows_per_expert, activation_type);
             }
             else

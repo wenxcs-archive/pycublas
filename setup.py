@@ -25,7 +25,7 @@ if shutil.which("ninja") is None:
     
 project_name = "pycublas"
 version = "0.1"
-
+project_path = os.path.dirname(__file__)
 cur_repo = Repo(os.path.dirname(__file__))
 version = version + "+" + cur_repo.head.commit.hexsha[:7]
 
@@ -64,7 +64,7 @@ if cuda_arch == 800:
 
     if True:
         # Build faster transformer MOE
-        ft_cutlass_path = f"{project_name}/cuda_kernels/FasterTransformer/cutlass"
+        ft_cutlass_path = os.path.join(project_path, f"{project_name}/cuda_kernels/FasterTransformer/cutlass")
         if not os.path.exists(ft_cutlass_path):
             ft_cutlass = Repo.clone_from("https://github.com/NVIDIA/cutlass.git", ft_cutlass_path)
             ft_cutlass.git.checkout("cc85b64cf676c45f98a17e3a47c0aafcf817f088")
@@ -75,7 +75,8 @@ if cuda_arch == 800:
                     f"{project_name}/cuda_kernels/FasterTransformer/cutlass_heuristic.cu",
                     f"{project_name}/cuda_kernels/FasterTransformer/th_moe_ops.cc",
                 ],
-                include_dirs=[f"{project_name}/cuda_kernels/FasterTransformer/",
+                include_dirs=[os.path.join(project_path, f"{project_name}/cuda_kernels/FasterTransformer/"),
+                              os.path.join(project_path, f"{project_name}/cuda_kernels/FasterTransformer/cutlass_extensions/include"),
                               os.path.join(ft_cutlass_path, "tools/util/include"),
                               os.path.join(ft_cutlass_path, "include")
                             ],
