@@ -18,6 +18,7 @@
 
 #include <iostream>
 #include <vector>
+#include <torch/extension.h>
 
 #include "torch/csrc/cuda/Stream.h"
 #include <torch/custom_class.h>
@@ -155,8 +156,10 @@ namespace torch_ext
         }
     }
 
-    TORCH_LIBRARY(moe_unit_ops, m)
-    {
-        m.def("grouped_gemm_bias", grouped_gemm_bias);
-    }
 } // namespace torch_ext
+
+
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
+{
+    m.def("grouped_gemm_bias", &torch_ext::grouped_gemm_bias, "Grouped GEMM with bias");
+}

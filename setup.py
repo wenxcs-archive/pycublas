@@ -28,41 +28,43 @@ version = "0.1"
 project_path = os.path.dirname(__file__)
 cur_repo = Repo(os.path.dirname(__file__))
 version = version + "+" + cur_repo.head.commit.hexsha[:7]
-
+features = ["vllm_moe_sparse_gemm", "fasttransformer_moe_sparse_gemm"]
 ext_modules = []
 
 if cuda_arch == 800:
-    logger.info("CUDA SM80 detected -> building vllm_moe_sparse_gemm sm80 kernel.")
-    ext_modules.append(cpp_extension.CUDAExtension(
-            name=f"{project_name}.vllm_moe_sparse_gemm",
-            sources=[
-                f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/kernels_sm80.cu",
-            ],
-            include_dirs=[f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/",
-                          os.path.join(cutlass_path, "tools/util/include"),
-                          os.path.join(cutlass_path, "include")],
-            extra_link_args=[
-                "-lcuda",
-                "-lculibos",
-                "-lcudart",
-                "-lcudart_static",
-                "-lrt",
-                "-lpthread",
-                "-ldl",
-                "-L/usr/lib/x86_64-linux-gnu/",
-            ],
-            extra_compile_args={
-                "cxx": ["-std=c++17", "-O3"],
-                "nvcc": [
-                    "-O3",
-                    "-std=c++17",
-                    "-DCUDA_ARCH=80",
-                    "-gencode=arch=compute_80,code=compute_80",
+    if 'vllm_moe_sparse_gemm' in features:
+        logger.info("CUDA SM80 detected -> building vllm_moe_sparse_gemm sm80 kernel.")
+        ext_modules.append(cpp_extension.CUDAExtension(
+                name=f"{project_name}.vllm_moe_sparse_gemm",
+                sources=[
+                    f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/kernels_sm80.cu",
                 ],
-            },
-        ))
+                include_dirs=[f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/",
+                            os.path.join(cutlass_path, "tools/util/include"),
+                            os.path.join(cutlass_path, "include")],
+                extra_link_args=[
+                    "-lcuda",
+                    "-lculibos",
+                    "-lcudart",
+                    "-lcudart_static",
+                    "-lrt",
+                    "-lpthread",
+                    "-ldl",
+                    "-L/usr/lib/x86_64-linux-gnu/",
+                ],
+                extra_compile_args={
+                    "cxx": ["-std=c++17", "-O3"],
+                    "nvcc": [
+                        "-O3",
+                        "-std=c++17",
+                        "-DCUDA_ARCH=80",
+                        "-gencode=arch=compute_80,code=compute_80",
+                    ],
+                },
+            ))
 
-    if True:
+    if 'fasttransformer_moe_sparse_gemm' in features:
+        logger.info("CUDA SM80 detected -> building fasttransformer_moe_sparse_gemm sm80 kernel.")
         # Build faster transformer MOE
         ft_cutlass_path = os.path.join(project_path, f"{project_name}/cuda_kernels/FasterTransformer/cutlass")
         if not os.path.exists(ft_cutlass_path):
