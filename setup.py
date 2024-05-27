@@ -82,6 +82,33 @@ if cuda_arch == 800:
             },
         ))
 
+    ext_modules.append(cpp_extension.CUDAExtension(
+            name=f"{project_name}.fasttransformer_moe_sparse_gemm",
+            sources=[
+                f"{project_name}/cuda_kernels/FasterTransformer/moe_gemm_kernels_bf16_fp8.cu",
+            ],
+            include_dirs=[f"{project_name}/cuda_kernels/FasterTransformer/"],
+            extra_link_args=[
+                "-lcuda",
+                "-lculibos",
+                "-lcudart",
+                "-lcudart_static",
+                "-lrt",
+                "-lpthread",
+                "-ldl",
+                "-L/usr/lib/x86_64-linux-gnu/",
+            ],
+            extra_compile_args={
+                "cxx": ["-std=c++17", "-O3"],
+                "nvcc": [
+                    "-O3",
+                    "-std=c++17",
+                    "-DCUDA_ARCH=80",
+                    "-gencode=arch=compute_80,code=compute_80",
+                ],
+            },
+        ))
+
 with open('requirements.txt') as f:
     required = f.read().splitlines()
 
