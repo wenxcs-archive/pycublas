@@ -28,3 +28,5 @@ def test_vllm_moe_f16xf8_ampere():
         act, weight, outp, wscale, topk_weight, sorted_token_ids, expert_id,
         tokens_after_padded, num_valid_tokens, tile_m, 0
     )
+
+test_vllm_moe_f16xf8_ampere()
