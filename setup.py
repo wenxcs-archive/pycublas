@@ -22,7 +22,7 @@ else:
 
 if shutil.which("ninja") is None:
     raise RuntimeError("The ninja is not found. ")
-    
+
 project_name = "pycublas"
 version = "0.1"
 project_path = os.path.dirname(__file__)
@@ -32,16 +32,19 @@ features = ["vllm_moe_sparse_gemm"]
 ext_modules = []
 
 if cuda_arch == 800:
-    if 'vllm_moe_sparse_gemm' in features:
+    if "vllm_moe_sparse_gemm" in features:
         logger.info("CUDA SM80 detected -> building vllm_moe_sparse_gemm sm80 kernel.")
-        ext_modules.append(cpp_extension.CUDAExtension(
+        ext_modules.append(
+            cpp_extension.CUDAExtension(
                 name=f"{project_name}.vllm_moe_sparse_gemm",
                 sources=[
                     f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/sparse_moe_gemm_kernel_sm80.cu",
                 ],
-                include_dirs=[f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/",
-                            os.path.join(cutlass_path, "tools/util/include"),
-                            os.path.join(cutlass_path, "include")],
+                include_dirs=[
+                    f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/",
+                    os.path.join(cutlass_path, "tools/util/include"),
+                    os.path.join(cutlass_path, "include"),
+                ],
                 extra_link_args=[
                     "-lcuda",
                     "-lculibos",
@@ -61,9 +64,10 @@ if cuda_arch == 800:
                         "-gencode=arch=compute_80,code=compute_80",
                     ],
                 },
-            ))
+            )
+        )
 
-with open('requirements.txt') as f:
+with open("requirements.txt") as f:
     required = f.read().splitlines()
 
 setup(
