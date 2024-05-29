@@ -30,13 +30,11 @@ struct gemm_config{
 
   static constexpr TiledMMA mmaC = make_tiled_mma(UniversalFMA<half,half,uint8_t>{},
                                  Layout<Shape<_16,_16,_1>>{});  // 16x16x1 TiledMMA
-
-  using mma_op = SM80_16x8x16_F16F16F16F16_TN;
-  using mma_traits = MMA_Traits<mma_op>;
-  using mma_atom = MMA_Atom<mma_traits>;
+  
+  static constexpr int expert_num = Int<16>{};
 };
 
-
+template<class gemm_config>
 __global__ void moe_gemm(
             half* a_ptr, uint8_t* b_ptr, half* c_ptr,
             int m, int n, int k, 
@@ -47,19 +45,29 @@ __global__ void moe_gemm(
             uint32_t* num_token_post_padded,
             uint32_t num_valid_tokens)
 {
-  auto prob_shape = make_shape(m, n, k)
-
   // Get block of activation information:
   auto a_block_id = blockIdx.x;
   // sorted_token_ids_ptr[a_block_id * tile_m :(a_block_id + 1) * tile_m]
   //  -> a_ptr[sorted_token_ids_ptr[a_block_id * tile_m :(a_block_id + 1) * tile_m], :]
-  auto a_block_expert = expert_ids_ptr[a_block_id];
-  // 
+  auto a_block_expert_id = expert_ids_ptr[a_block_id];
+  // b_ptr[a_block_expert_id, :, :]
+  auto prob_shape = make_shape(m, n, k);
+  auto b_block_id = blockIdx.x;
+  int expert_num = 16;
+  auto thr_id = threadIdx.x;
 
-  __shared__ TA smemA[cosize_v<ASmemLayout>];
-  __shared__ TB smemB[cosize_v<BSmemLayout>];
-  Tensor sA = make_tensor(make_smem_ptr(smemA), sA_layout);            // (BLK_M,BLK_K,PIPE)
-  Tensor sB = make_tensor(make_smem_ptr(smemB), sB_layout);            // (BLK_N,BLK_K,PIPE)
+  Tensor mA = make_tensor(make_gmem_ptr(a_ptr), make_shape(m,k), make_stride(k, 1));
+  Tensor gA = local_tile(mA, make_tile(gemm_config::bM, gemm_config::bK), make_coord(a_block_id, _));
+
+  Tensor mB = make_tensor(make_gmem_ptr(b_ptr), make_shape(expert_num, n, k ), make_stride(n, k, 1));
+  Tensor gB = local_tile(mB, make_tile(gemm_config::bN, gemm_config::bK), make_coord(a_block_expert_id, b_block_id, _));
+
+  gemm_config::mmaC mma;
+  auto thr_mma = mma.get_slice(thr_id);
+  auto tA = mma.partition_A(gA(_, _))
+  auto tB = mma.partition_B(gB(_, _))
+
+  auto g2s = U
 }
 
 void vllm_sparse_moe_gemm_kernel(
@@ -84,7 +92,7 @@ void vllm_sparse_moe_gemm_kernel(
                size(ceil_div(N, gemm_config::bN)));
   dim3 dimBlock(size(gemm_config::mmaC));
 
-  moe_gemm<<<dimGrid, dimBlock, 0, (CUstream_st*)stream>>>(
+  moe_gemm<gemm_config><<<dimGrid, dimBlock, 0, (CUstream_st*)stream>>>(
     (half*)activation.data_ptr(),
     (uint8_t*)weight.data_ptr(),
     (half*)output.data_ptr(),
