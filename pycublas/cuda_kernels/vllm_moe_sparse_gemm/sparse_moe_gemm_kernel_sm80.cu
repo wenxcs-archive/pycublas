@@ -18,20 +18,18 @@ namespace cuda_kernels{
 using namespace cute;
 
 struct gemm_config{
-  static constexpr int tile_m = 128;
-  static constexpr int tile_n = 128;
-  static constexpr int tile_k = 32;
+  static constexpr int m = 128;
+  static constexpr int n = 128;
+  static constexpr int k = 32;
 
-  static constexpr auto bM = Int<tile_m>{};
-  static constexpr auto bN = Int<tile_n>{};
-  static constexpr auto bK = Int<tile_k>{};
-  static constexpr auto cta_tiler = make_shape(bM, bN, bK); // (BLK_M, BLK_N, BLK_K)
-  static constexpr auto bP = Int<3>{};                      // Pipeline
-
+  static constexpr int expert_num = Int<16>{};
+  static constexpr auto _m = Int<m>{};
+  static constexpr auto _n  = Int<n>{};
+  static constexpr auto _k = Int<k>{};
+  static constexpr auto cta_tiler = make_shape(_m, _n, _k); // (BLK_M, BLK_N, BLK_K)
+  static constexpr auto _p = Int<3>{};                      // Pipeline
   static constexpr TiledMMA mmaC = make_tiled_mma(UniversalFMA<half,half,uint8_t>{},
                                  Layout<Shape<_16,_16,_1>>{});  // 16x16x1 TiledMMA
-  
-  static constexpr int expert_num = Int<16>{};
 };
 
 template<class gemm_config>
@@ -45,6 +43,7 @@ __global__ void moe_gemm(
             uint32_t* num_token_post_padded,
             uint32_t num_valid_tokens)
 {
+  gemm_config cfg;
   // Get block of activation information:
   auto a_block_id = blockIdx.x;
   // sorted_token_ids_ptr[a_block_id * tile_m :(a_block_id + 1) * tile_m]
@@ -52,22 +51,20 @@ __global__ void moe_gemm(
   auto a_block_expert_id = expert_ids_ptr[a_block_id];
   // b_ptr[a_block_expert_id, :, :]
   auto prob_shape = make_shape(m, n, k);
-  auto b_block_id = blockIdx.x;
+  auto b_block_id = blockIdx.y;
   int expert_num = 16;
   auto thr_id = threadIdx.x;
 
   Tensor mA = make_tensor(make_gmem_ptr(a_ptr), make_shape(m,k), make_stride(k, 1));
-  Tensor gA = local_tile(mA, make_tile(gemm_config::bM, gemm_config::bK), make_coord(a_block_id, _));
-
   Tensor mB = make_tensor(make_gmem_ptr(b_ptr), make_shape(expert_num, n, k ), make_stride(n, k, 1));
-  Tensor gB = local_tile(mB, make_tile(gemm_config::bN, gemm_config::bK), make_coord(a_block_expert_id, b_block_id, _));
+  Tensor gB = local_tile(mB, make_tile(gemm_config::_n, gemm_config::_k), make_coord(a_block_expert_id, b_block_id, _));
 
-  gemm_config::mmaC mma;
-  auto thr_mma = mma.get_slice(thr_id);
-  auto tA = mma.partition_A(gA(_, _))
-  auto tB = mma.partition_B(gB(_, _))
+  auto smA_layout = make_layout(make_shape(gemm_config::_m, gemm_config::_k, gemm_config::_p));
+  auto smB_layout = make_layout(make_shape(gemm_config::_n, gemm_config::_k, gemm_config::_p));
 
-  auto g2s = U
+  __shared__ half smA[cosize_v<decltype(smA_layout)>];
+  __shared__ uint8_t smB_fp8[cosize_v<decltype(smB_layout)>];
+  Tensor sA = make_tensor(make_smem_ptr(smA), smA_layout);
 }
 
 void vllm_sparse_moe_gemm_kernel(
@@ -88,8 +85,8 @@ void vllm_sparse_moe_gemm_kernel(
   auto N = weight.size(1);
   auto E = weight.size(0);
 
-  dim3 dimGrid(size(ceil_div(sorted_token_ids.size(0), gemm_config::bM)),
-               size(ceil_div(N, gemm_config::bN)));
+  dim3 dimGrid(size(ceil_div(sorted_token_ids.size(0), gemm_config::_m)),
+               size(ceil_div(N, gemm_config::_n)));
   dim3 dimBlock(size(gemm_config::mmaC));
 
   moe_gemm<gemm_config><<<dimGrid, dimBlock, 0, (CUstream_st*)stream>>>(
