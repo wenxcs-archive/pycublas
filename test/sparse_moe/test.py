@@ -25,7 +25,7 @@ def test_vllm_moe_f16xf8_ampere():
     topk_weight = torch.ones(M * 2).cuda().half()
 
     vllm_moe.vllm_sparse_moe_gemm_kernel(
-        act, weight, outp, wscale, topk_weight, sorted_token_ids, expert_id,
+        outp, act, weight, wscale, topk_weight, sorted_token_ids, expert_id,
         tokens_after_padded, num_valid_tokens, tile_m, 0
     )
 

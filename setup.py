@@ -67,9 +67,6 @@ if cuda_arch == 800:
             )
         )
 
-with open("requirements.txt") as f:
-    required = f.read().splitlines()
-
 setup(
     name=f"{project_name}",
     version=f"{version}",
