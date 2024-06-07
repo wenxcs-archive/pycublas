@@ -24,6 +24,13 @@
 #include <vector>
 
 #include <cutlass/gemm/group_array_problem_shape.hpp>
+#include "cutlass/cutlass.h"
+#include "cutlass/layout/matrix.h"
+#include "cutlass/detail/layout.hpp"
+
+#include "cuda_fp8.h"
+
+#include "tensorrt_llm/common/assert.h"
 
 namespace tensorrt_llm
 {
