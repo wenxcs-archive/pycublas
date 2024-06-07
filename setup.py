@@ -28,7 +28,7 @@ version = "0.1"
 project_path = os.path.dirname(__file__)
 cur_repo = Repo(os.path.dirname(__file__))
 version = version + "+" + cur_repo.head.commit.hexsha[:7]
-features = []
+features = ["trtllm_moe_grouped_gemm"]
 ext_modules = []
 
 if cuda_arch == 800:
@@ -38,8 +38,8 @@ if cuda_arch == 800:
         module_folder = os.path.join(project_path, project_name, "cuda_kernels", module_name)
         module_cutlass_path = os.path.join(module_folder, "cutlass")
 
-        if not os.path.exists(cutlass_path):
-            module_cutlass_repo = Repo.clone_from("https://github.com/NVIDIA/cutlass.git", cutlass_path)
+        if not os.path.exists(module_cutlass_path):
+            module_cutlass_repo = Repo.clone_from("https://github.com/NVIDIA/cutlass.git", module_cutlass_path)
             module_cutlass_repo.git.checkout("7d49e6c")
 
         ext_modules.append(cpp_extension.CUDAExtension(
