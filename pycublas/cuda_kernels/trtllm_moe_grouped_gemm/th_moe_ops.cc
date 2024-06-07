@@ -1,9 +1,19 @@
 #include "moe_gemm_kernels.h"
 #include "torch/extension.h"
 
+#include "c10/cuda/CUDAStream.h"
+
 using torch::Tensor;
 
-/*
+#define CHECK_TYPE(x, st) TORCH_CHECK(x.scalar_type() == st, "Inconsistency of Tensor type: " #x)
+#define CHECK_TH_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CPU(x) TORCH_CHECK(!x.is_cuda(), #x " must be a CPU tensor")
+#define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
+#define CHECK_INPUT(x, st)                                                                                             \
+    CHECK_TH_CUDA(x);                                                                                                  \
+    CHECK_CONTIGUOUS(x);                                                                                               \
+    CHECK_TYPE(x, st)
+
 namespace torch_ext
 {
     template <typename T>
@@ -63,10 +73,12 @@ namespace torch_ext
                                 weight_scale_ptr,
                                 res_ptr,
                                 total_rows_before_expert_ptr,
+                                tensorrt_llm::HopperGroupedGemmInput{},
                                 num_rows,
                                 gemm_n,
                                 gemm_k,
                                 experts,
+                                false,
                                 stream);
 
         return res;
@@ -113,4 +125,3 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("grouped_gemm", &torch_ext::grouped_gemm, "Grouped GEMM with bias");
 }
-*/

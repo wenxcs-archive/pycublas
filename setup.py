@@ -47,8 +47,10 @@ if cuda_arch == 800:
                 sources=[
                     os.path.join(module_folder, "fp16_int8_gemm_fg_scaleonly.cu"),
                     os.path.join(module_folder, "fused_moe_gemm_launcher_sm80.cu"),
+                    # os.path.join(module_folder, "fpA_intB_launcher_sm90.cu"),
                     # os.path.join(module_folder, "moe_kernels.cu"),
                     os.path.join(module_folder, "th_moe_ops.cc"),
+                    os.path.join(module_folder, "tllmException.cpp"),
                 ],
                 include_dirs=[os.path.join(module_folder, "cutlass_extensions", "include"),
                               os.path.join(module_folder),

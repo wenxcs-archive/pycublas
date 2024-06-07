@@ -2,7 +2,7 @@ import os
 import sys
 import torch
 import pycublas
-import pycublas.fasttransformer_moe_sparse_gemm as ft_moe
+import pycublas.trtllm_moe_grouped_gemm as ft_moe
 from vllm import _custom_ops as ops
 
 #!pip install vllm to test
