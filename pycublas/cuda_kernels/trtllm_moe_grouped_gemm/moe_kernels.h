@@ -19,8 +19,8 @@
 #include "cutlass/gemm/gemm.h"
 #include "tensorrt_llm/common/assert.h"
 #include "tensorrt_llm/common/quantization.h"
-#include "tensorrt_llm/kernels/cutlass_kernels/moe_gemm/moe_gemm_kernels.h"
-#include "tensorrt_llm/plugins/common/gemmPluginProfiler.h"
+#include "moe_gemm_kernels.h"
+//#include "tensorrt_llm/plugins/common/gemmPluginProfiler.h"
 #include <cuda_runtime_api.h>
 #include <optional>
 
@@ -243,7 +243,7 @@ private:
     HopperGroupedGemmInput hopper_grouped_gemm_input_;
 };
 
-void makeLoadBalancedRoutingConfiguration(
-    void* data_void, int num_experts, int num_tokens, int k, nvinfer1::DataType type, cudaStream_t stream);
+// void makeLoadBalancedRoutingConfiguration(
+//    void* data_void, int num_experts, int num_tokens, int k, nvinfer1::DataType type, cudaStream_t stream);
 
 } // namespace tensorrt_llm::kernels

@@ -66,10 +66,10 @@ if cuda_arch == 800:
                     "-L/usr/lib/x86_64-linux-gnu/",
                 ],
                 extra_compile_args={
-                    "cxx": ["-std=c++17", "-O3"],
+                    "cxx": ["-std=c++20", "-O3"],
                     "nvcc": [
                         "-O3",
-                        "-std=c++17",
+                        "-std=c++20",
                         "-DCUDA_ARCH=80",
                         "-gencode=arch=compute_80,code=compute_80",
                     ],

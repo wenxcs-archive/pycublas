@@ -15,6 +15,12 @@
  * limitations under the License.
  */
 
+// DISABLE Pytorch CUDAExtension Flags
+#undef __CUDA_NO_HALF_CONVERSIONS__ 
+#undef __CUDA_NO_HALF_OPERATORS__
+#undef __CUDA_NO_BFLOAT16_CONVERSIONS__
+#undef __CUDA_NO_HALF2_OPERATORS__
+
 #include "tensorrt_llm/common/workspace.h"
 #include <cuda.h>
 #include <cuda_fp16.h>
@@ -1340,6 +1346,7 @@ __global__ void initRoutingKernelDiagonal(void* data_void, int num_experts, int 
     }
 }
 
+/*
 void makeLoadBalancedRoutingConfiguration(
     void* data_void, int num_experts, int num_tokens, int k, nvinfer1::DataType type, cudaStream_t stream)
 {
@@ -1355,6 +1362,7 @@ void makeLoadBalancedRoutingConfiguration(
 
     sync_check_cuda_error();
 }
+*/
 
 // ==================== Variable batched GEMM specializations ==================================
 template class CutlassMoeFCRunner<float, float>;
