@@ -1,2 +1,0 @@
-#nvcc kernels_sm80.cu -o kernels_sm80.a -O2 -arch=sm_80 -std=c++17 -I../../../cutlass/include -I../../../cutlass/tools/util/include --expt-relaxed-constexpr -cudart shared --cudadevrt none -lcublasLt -lcublas
-nvcc moe_gemm_kernels_bf16_fp8.cu cutlass_heuristic.cu th_moe_ops.cc -o sparse_moe_gemm_kernel_sm80.a -O2 -arch=sm_80 -std=c++17 -I../../../cutlass/include -I../../../cutlass/tools/util/include -Icutlass_extensions/include/ --expt-relaxed-constexpr -cudart shared --cudadevrt none -lcublasLt -lcublas

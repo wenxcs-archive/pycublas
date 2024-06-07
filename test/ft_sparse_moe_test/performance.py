@@ -11,7 +11,7 @@ def moe_perf(
     tokens=1024,
     experts=16,
     topk=2,
-    intermediate_size=4096,
+    intermediate_size=6144,
     hidden_size=4096,
     config=None,
     times=100,
@@ -20,7 +20,7 @@ def moe_perf(
     torch.manual_seed(0)
     hidden_state = torch.randn(tokens*topk, hidden_size).cuda().half()
     w1 = (torch.ones(experts, intermediate_size * 2, hidden_size)*8).to(torch.int8).cuda()
-    w2 = (torch.ones(experts, hidden_size, intermediate_size * 2)*8).to(torch.int8).cuda()
+    w2 = (torch.ones(experts, hidden_size, intermediate_size)*8).to(torch.int8).cuda()
     w1_scale = torch.ones([experts]).cuda().half()
     w2_scale = torch.ones([experts]).cuda().half()
     rows_per_expert = (torch.ones([experts])*512).cuda().int()
@@ -30,7 +30,7 @@ def moe_perf(
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
 
-        intermediate_cache2 = torch.empty((tokens*topk, intermediate_size*2),
+        intermediate_cache2 = torch.empty((tokens*topk, intermediate_size),
                                       device=hidden_state.device,
                                       dtype=hidden_state.dtype)
         start.record()
