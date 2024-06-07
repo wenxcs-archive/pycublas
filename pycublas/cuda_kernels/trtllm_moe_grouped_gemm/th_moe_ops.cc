@@ -3,6 +3,8 @@
 
 #include "c10/cuda/CUDAStream.h"
 
+#include "cutlass_extensions/gemm_configs.h"
+
 using torch::Tensor;
 
 #define CHECK_TYPE(x, st) TORCH_CHECK(x.scalar_type() == st, "Inconsistency of Tensor type: " #x)
@@ -68,6 +70,12 @@ namespace torch_ext
         tensorrt_llm::MoeGemmRunner<T, WeightType> moe_gemm_runner;
         WeightType *wt_ptr = get_ptr<WeightType>(weights);
 
+        auto configs = moe_gemm_runner.getConfigs();
+        assert(configs.size() > 1);
+
+        estimate_best_config_from_occupancies()
+
+        moe_gemm_runner.setBestConfig(configs[0]);
         moe_gemm_runner.moeGemm(act_ptr,
                                 wt_ptr,
                                 weight_scale_ptr,
@@ -80,7 +88,6 @@ namespace torch_ext
                                 experts,
                                 false,
                                 stream);
-
         return res;
     }
 
@@ -89,7 +96,6 @@ namespace torch_ext
                              Tensor weight_scales,
                              Tensor rows_per_expert)
     {
-
         const at::ScalarType _st = activations.scalar_type();
         CHECK_INPUT(activations, _st);
         CHECK_INPUT(weight_scales, _st);

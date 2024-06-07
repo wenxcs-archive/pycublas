@@ -168,6 +168,10 @@ void genericMoeGemmKernelLauncher(T const* A, WeightType const* B, T const* weig
             reinterpret_cast<ElementType*>(C), total_rows_before_expert, num_rows, gemm_n, gemm_k, num_experts,
             multi_processor_count, stream, kernel_occupancy);
     }
+    else 
+    {
+        TLLM_THROW("Fused MoE GEMM kernel not supported for this configuration");
+    }
 }
 
 } // namespace kernels::cutlass_kernels
@@ -378,7 +382,7 @@ std::vector<cutlass_extensions::CutlassGemmConfig> MoeGemmRunner<T, WeightType>:
         = std::is_same<T, WeightType>::value ? CutlassGemmConfig::NONE : CutlassGemmConfig::WEIGHT_ONLY;
     static constexpr auto simt_only_flag
         = std::is_same<T, float>::value ? CutlassGemmConfig::SIMT_ONLY : CutlassGemmConfig::NONE;
-    int const max_split_k = 1;
+    int const max_split_k = 2;
     int const grouped_gemm_flag = CutlassGemmConfig::GROUPED_GEMM;
     int const enable_hopper = CutlassGemmConfig::NONE;
 
