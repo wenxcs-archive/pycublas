@@ -8,11 +8,11 @@ from vllm import _custom_ops as ops
 #!pip install vllm to test
 
 def test_grouped_gemm(
-    tokens=1024,
+    tokens=128,
     experts=2,
     topk=1,
-    hidden_size=4096,
-    intermediate_size=6400,
+    hidden_size=128,
+    intermediate_size=256,
 ):
     assert tokens*topk % experts == 0, "tokens*topk % experts != 0"
     torch.manual_seed(12345)
@@ -25,10 +25,9 @@ def test_grouped_gemm(
     for i in range(1, experts):
         total_rows_before_expert[i] = total_rows_before_expert[i] - total_rows_before_expert[0]
     total_rows_before_expert[0] = 0
-
-    print(total_rows_before_expert, hidden_state.shape[0])
-
+    #print(total_rows_before_expert, hidden_state.shape[0])
     a1 = ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert)
+    print(a1.shape)
     print(a1)
 
 
@@ -75,11 +74,6 @@ def moe_perf(
     
     return all_time/times
 
-searchspace = [1, 16, 32, 64, 128, 256] 
-
-for tk in searchspace:
-    print(
-        tk,
-        ",",
-        moe_perf(tokens=tk, topk=1, experts=1),
-    )
+#searchspace = [1, 16, 32, 64, 128, 256] 
+#for tk in searchspace:
+#    print(tk, ",", moe_perf(tokens=tk, topk=1, experts=1),)
