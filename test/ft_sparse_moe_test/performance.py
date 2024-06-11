@@ -15,10 +15,10 @@ def test_grouped_gemm(
     out_size=16,
 ):
     assert tokens*topk % experts == 0, "tokens*topk % experts != 0"
-    torch.manual_seed(12345)
+    torch.manual_seed(1234)
     hidden_state = torch.randn(tokens*topk, in_size).cuda().half()
-    print(hidden_state.sum())
-    out = torch.ones_like(hidden_state)
+    print(hidden_state.sum(-1))
+    out = torch.zeros_like(hidden_state)
     w1 = (torch.ones(experts, out_size, in_size)).to(torch.int8).cuda()
     w1_scale = torch.ones([experts]).cuda().half()
     total_rows_before_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().to(torch.int64)
@@ -28,14 +28,15 @@ def test_grouped_gemm(
         total_rows_before_expert[i] = total_rows_before_expert[i] - total_rows_before_expert[0] + 1
     total_rows_before_expert[0] = 1
     print()
-    print(f"total_rows_before_expert: {total_rows_before_expert}")
+    print(f"total_rows_before_expert: {total_rows_before_expert}, {hidden_state.size(0)}")
     print(f"hidden_state: {hidden_state.shape}")
     print(f"w1: {w1.shape}")
     print(f"w1_scale: {w1_scale}")
-    print(out)
     ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert, out, 5)
     print(out.shape)
     print(out)
+
+    print(hidden_state @ torch.ones_like(w1).half().view(in_size, out_size))
 
 
 def moe_perf(
