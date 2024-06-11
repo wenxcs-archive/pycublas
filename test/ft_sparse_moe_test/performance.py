@@ -75,13 +75,11 @@ def moe_perf(
     
     return all_time/times
 
-searchspace = list(range(2048, 4097, 256))
-
-searchspace = [512, 1024, 2048, 4096]
+searchspace = [1, 16, 32, 64, 128, 256] 
 
 for tk in searchspace:
     print(
         tk,
         ",",
-        moe_perf(tokens=tk, topk=1),
+        moe_perf(tokens=tk, topk=1, experts=1),
     )
