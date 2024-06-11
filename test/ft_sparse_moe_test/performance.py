@@ -30,9 +30,9 @@ def test_grouped_gemm(
     print(f"hidden_state: {hidden_state.shape}")
     print(f"w1: {w1.shape}")
     print(f"w1_scale: {w1_scale}")
-    a1 = ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert)
-    print(a1.shape)
-    print(a1)
+    out = ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert)
+    print(out.shape)
+    print(out)
 
 
 def moe_perf(
