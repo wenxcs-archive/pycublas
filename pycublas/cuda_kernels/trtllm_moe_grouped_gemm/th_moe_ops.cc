@@ -28,22 +28,34 @@ namespace torch_ext
     Tensor grouped_gemm_helper(Tensor activations,
                                     Tensor weights,
                                     Tensor weight_scales,
-                                    Tensor total_rows_before_expert)
+                                    Tensor total_rows_before_expert,
+                                    Tensor res,
+                                    int activation_type
+                                    )
     {
         const at::ScalarType _st = activations.scalar_type();
         auto stream = at::cuda::getCurrentCUDAStream().stream();
         const int num_rows = activations.size(0);
         const int64_t gemm_k = activations.size(1);
-        const int64_t gemm_n = weights.size(-1);
+        const int64_t gemm_n = weights.size(1);
         const int64_t experts = weights.size(0);
 
-        // mxk, kxn -> mxn
         assert(activations.size(1) == weights.size(2));
         assert(experts == weight_scales.size(0));
         assert(total_rows_before_expert.dtype() == torch::kInt64);
 
         // auto res = torch::zeros({num_rows, gemm_n}, torch::dtype(_st).device(torch::kCUDA).requires_grad(false));
-        auto res = torch::empty({num_rows, gemm_n}, torch::dtype(_st).device(torch::kCUDA).requires_grad(false));
+        // auto res = torch::empty({num_rows, gemm_n}, torch::dtype(_st).device(torch::kCUDA).requires_grad(false));
+
+        bool fused_moe = false;
+
+        if(activation_type == (int)tensorrt_llm::ActivationType::Identity)
+        {
+            assert(activations.scalar_type() == res.scalar_type());
+            assert(activations.device() == res.device());
+            assert(activations.size(0) == res.size(0));
+            assert(activations.size(1) == res.size(1));
+        }
 
         T *act_ptr = get_ptr<T>(activations);
         WeightType *wt_ptr = get_ptr<WeightType>(weights);
@@ -68,10 +80,9 @@ namespace torch_ext
             (int64_t)gemm_n,
             (int64_t)gemm_k,
             experts,
-            tensorrt_llm::ActivationType::Identity,
-            false,
-            stream
-        );
+            (tensorrt_llm::ActivationType)activation_type,
+            fused_moe,
+            stream);
         /*
         moe_gemm_runner.moeGemm(act_ptr,
                                 wt_ptr,
@@ -92,7 +103,9 @@ namespace torch_ext
     Tensor grouped_gemm(Tensor activations,
                              Tensor weights,
                              Tensor weight_scales,
-                             Tensor total_rows_before_expert)
+                             Tensor total_rows_before_expert,
+                             Tensor out,
+                             int activation_type)
     {
         const at::ScalarType _st = activations.scalar_type();
         CHECK_INPUT(activations, _st);
@@ -107,7 +120,7 @@ namespace torch_ext
             {
                 CHECK_INPUT(weights, torch::kInt8);
                 return grouped_gemm_helper<__half, uint8_t>(
-                    activations, weights, weight_scales, total_rows_before_expert);
+                    activations, weights, weight_scales, total_rows_before_expert, out, activation_type);
             }
             else
             {

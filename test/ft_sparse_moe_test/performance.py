@@ -16,8 +16,10 @@ def test_grouped_gemm(
 ):
     assert tokens*topk % experts == 0, "tokens*topk % experts != 0"
     torch.manual_seed(12345)
-    hidden_state = torch.ones(tokens*topk, in_size).cuda().half()
-    w1 = (torch.ones(experts, in_size, out_size)).to(torch.int8).cuda()
+    hidden_state = torch.randn(tokens*topk, in_size).cuda().half()
+    print(hidden_state.sum())
+    out = torch.ones_like(hidden_state)
+    w1 = (torch.ones(experts, out_size, in_size)).to(torch.int8).cuda()
     w1_scale = torch.ones([experts]).cuda().half()
     total_rows_before_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().to(torch.int64)
     for i in range(1, experts):
@@ -30,7 +32,8 @@ def test_grouped_gemm(
     print(f"hidden_state: {hidden_state.shape}")
     print(f"w1: {w1.shape}")
     print(f"w1_scale: {w1_scale}")
-    out = ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert)
+    print(out)
+    ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert, out, 5)
     print(out.shape)
     print(out)
 
