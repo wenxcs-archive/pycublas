@@ -8,24 +8,28 @@ from vllm import _custom_ops as ops
 #!pip install vllm to test
 
 def test_grouped_gemm(
-    tokens=128,
-    experts=2,
+    tokens=16,
+    experts=4,
     topk=1,
-    hidden_size=128,
-    intermediate_size=256,
+    in_size=16,
+    out_size=16,
 ):
     assert tokens*topk % experts == 0, "tokens*topk % experts != 0"
     torch.manual_seed(12345)
-    hidden_state = torch.ones(tokens*topk, hidden_size).cuda().half()
-    w1 = (torch.ones(experts, hidden_size, intermediate_size * 2)*1).to(torch.int8).cuda()
+    hidden_state = torch.ones(tokens*topk, in_size).cuda().half()
+    w1 = (torch.ones(experts, in_size, out_size)).to(torch.int8).cuda()
     w1_scale = torch.ones([experts]).cuda().half()
     total_rows_before_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().to(torch.int64)
     for i in range(1, experts):
         total_rows_before_expert[i] = total_rows_before_expert[i-1] + total_rows_before_expert[i]
     for i in range(1, experts):
-        total_rows_before_expert[i] = total_rows_before_expert[i] - total_rows_before_expert[0]
-    total_rows_before_expert[0] = 0
-    #print(total_rows_before_expert, hidden_state.shape[0])
+        total_rows_before_expert[i] = total_rows_before_expert[i] - total_rows_before_expert[0] + 1
+    total_rows_before_expert[0] = 1
+    print()
+    print(f"total_rows_before_expert: {total_rows_before_expert}")
+    print(f"hidden_state: {hidden_state.shape}")
+    print(f"w1: {w1.shape}")
+    print(f"w1_scale: {w1_scale}")
     a1 = ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert)
     print(a1.shape)
     print(a1)
@@ -52,8 +56,8 @@ def moe_perf(
     for i in range(1, experts):
         total_rows_before_expert[i] = total_rows_before_expert[i-1] + total_rows_before_expert[i]
     for i in range(1, experts):
-        total_rows_before_expert[i] = total_rows_before_expert[i] - total_rows_before_expert[0]
-    total_rows_before_expert[0] = 0
+        total_rows_before_expert[i] = total_rows_before_expert[i] - total_rows_before_expert[0] + 1
+    total_rows_before_expert[0] = 1
 
     all_time = 0.0
     for j in range(10 + times):

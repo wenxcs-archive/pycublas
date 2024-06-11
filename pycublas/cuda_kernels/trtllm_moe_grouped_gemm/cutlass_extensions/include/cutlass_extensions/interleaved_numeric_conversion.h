@@ -80,7 +80,8 @@ struct FastInterleavedAndBiasedNumericArrayConverter<half_t, uint8_t, 4>
         */
 
         uint32_t* h = reinterpret_cast<uint32_t*>(&result);
-        *h = 0x3c003c00;
+        h[0] = 0x3c003c00;
+        h[1] = 0x3c003c00;
 
         return result;
     }

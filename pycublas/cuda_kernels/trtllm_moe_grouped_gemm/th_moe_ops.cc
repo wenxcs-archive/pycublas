@@ -42,7 +42,8 @@ namespace torch_ext
         assert(experts == weight_scales.size(0));
         assert(total_rows_before_expert.dtype() == torch::kInt64);
 
-        auto res = torch::zeros({num_rows, gemm_n}, torch::dtype(_st).device(torch::kCUDA).requires_grad(false));
+        // auto res = torch::zeros({num_rows, gemm_n}, torch::dtype(_st).device(torch::kCUDA).requires_grad(false));
+        auto res = torch::empty({num_rows, gemm_n}, torch::dtype(_st).device(torch::kCUDA).requires_grad(false));
 
         T *act_ptr = get_ptr<T>(activations);
         WeightType *wt_ptr = get_ptr<WeightType>(weights);

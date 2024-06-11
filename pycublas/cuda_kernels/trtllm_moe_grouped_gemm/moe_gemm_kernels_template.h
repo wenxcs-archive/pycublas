@@ -226,6 +226,7 @@ void dispatchGemmConfig(T const* A, WeightType const* B, T const* weight_scales,
     }
 }
 
+/*
 // This overload will handle tensorop gemms. It is disabled via SFINAE for fp32.
 // This overload is only enabled when T == WeightType.
 template <typename T, typename WeightType, typename arch, typename EpilogueTag,
@@ -279,6 +280,7 @@ void dispatchMoeGemmToCutlass(T const* A, WeightType const* B, T const* weight_s
     default: TLLM_THROW("Config is invalid for same type tensorop GEMM."); break;
     }
 }
+*/
 
 // Tensorop GEMM overload
 // Overload for quantize MoE GEMMs. We disable some warp configs here since they will not be used and we can improve
@@ -335,6 +337,7 @@ void dispatchMoeGemmToCutlass(T const* A, WeightType const* B, T const* weight_s
     }
 }
 
+/*
 // This overload will handle simt gemms. It is disabled via SFINAE for tensorop.
 template <typename T, typename WeightType, typename arch, typename EpilogueTag,
     typename std::enable_if<std::is_same<T, float>::value>::type* = nullptr>
@@ -357,6 +360,7 @@ void dispatchMoeGemmToCutlass(T const* A, WeightType const* B, T const* weight_s
     default: TLLM_THROW("Unsupported config for float MoE gemm."); break;
     }
 }
+*/
 
 template <typename T, typename WeightType>
 std::vector<cutlass_extensions::CutlassGemmConfig> MoeGemmRunner<T, WeightType>::getConfigs() const
