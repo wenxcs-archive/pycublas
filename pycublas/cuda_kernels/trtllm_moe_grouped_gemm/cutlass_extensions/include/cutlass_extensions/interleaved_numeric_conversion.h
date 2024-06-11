@@ -77,6 +77,9 @@ struct FastInterleavedAndBiasedNumericArrayConverter<half_t, uint8_t, 4>
         asm volatile("sub.f16x2 %0, %1, %2;\n" : "=r"(h[0]) : "r"(h[0]), "r"(I8s_TO_F16s_MAGIC_NUM));
         asm volatile("sub.f16x2 %0, %1, %2;\n" : "=r"(h[1]) : "r"(h[1]), "r"(I8s_TO_F16s_MAGIC_NUM));
 
+        // uint32_t* h = reinterpret_cast<uint32_t*>(&result);
+        // *h = 0x3c003c00;
+
         return result;
     }
 

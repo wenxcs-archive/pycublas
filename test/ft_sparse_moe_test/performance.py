@@ -8,11 +8,11 @@ from vllm import _custom_ops as ops
 #!pip install vllm to test
 
 def test_grouped_gemm(
-    tokens=128,
-    experts=1,
+    tokens=1024,
+    experts=2,
     topk=1,
-    intermediate_size=6400,
     hidden_size=4096,
+    intermediate_size=6400,
 ):
     assert tokens*topk % experts == 0, "tokens*topk % experts != 0"
     torch.manual_seed(12345)
@@ -20,7 +20,14 @@ def test_grouped_gemm(
     w1 = (torch.ones(experts, hidden_size, intermediate_size * 2)*1).to(torch.int8).cuda()
     w1_scale = torch.ones([experts]).cuda().half()
     total_rows_before_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().to(torch.int64)
-    print("total_rows_before_expert", total_rows_before_expert)
+    for i in range(1, experts):
+        total_rows_before_expert[i] = total_rows_before_expert[i-1] + total_rows_before_expert[i]
+    for i in range(1, experts):
+        total_rows_before_expert[i] = total_rows_before_expert[i] - total_rows_before_expert[0]
+    total_rows_before_expert[0] = 0
+
+    print(total_rows_before_expert, hidden_state.shape[0])
+
     a1 = ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert)
     print(a1)
 
@@ -37,11 +44,17 @@ def moe_perf(
 ):
     torch.manual_seed(0)
     hidden_state = torch.ones(tokens*topk, hidden_size).cuda().half()
-    w1 = (torch.ones(experts, intermediate_size * 2, hidden_size)*1).to(torch.int8).cuda()
-    w2 = (torch.ones(experts, hidden_size, intermediate_size)*1).to(torch.int8).cuda()
+    w1 = (torch.ones(experts, hidden_size, intermediate_size * 2)*1).to(torch.int8).cuda()
+    w2 = (torch.ones(experts, intermediate_size, hidden_size)*1).to(torch.int8).cuda()
     w1_scale = torch.ones([experts]).cuda().half()
     w2_scale = torch.ones([experts]).cuda().half()
     rows_per_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().int()
+    total_rows_before_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().to(torch.int64)
+    for i in range(1, experts):
+        total_rows_before_expert[i] = total_rows_before_expert[i-1] + total_rows_before_expert[i]
+    for i in range(1, experts):
+        total_rows_before_expert[i] = total_rows_before_expert[i] - total_rows_before_expert[0]
+    total_rows_before_expert[0] = 0
 
     all_time = 0.0
     for j in range(10 + times):
@@ -52,12 +65,9 @@ def moe_perf(
                                       device=hidden_state.device,
                                       dtype=hidden_state.dtype)
         start.record()
-        a1 = ft_moe.grouped_gemm(hidden_state, w1, w1_scale, rows_per_expert)
-        print(a1)
-        break
-        #ops.silu_and_mul(intermediate_cache2, a1)
-        #a2 = ft_moe.grouped_gemm(intermediate_cache2, w2, w2_scale, rows_per_expert)
-        #a2 = ft_moe.grouped_gemm(intermediate_cache2, w2, w2_scale, rows_per_expert)
+        a1 = ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert)
+        ops.silu_and_mul(intermediate_cache2, a1)
+        a2 = ft_moe.grouped_gemm(intermediate_cache2, w2, w2_scale, total_rows_before_expert)
         end.record()
         torch.cuda.synchronize()
         if j >= 10:
@@ -65,7 +75,6 @@ def moe_perf(
     
     return all_time/times
 
-'''
 searchspace = list(range(2048, 4097, 256))
 
 searchspace = [512, 1024, 2048, 4096]
@@ -76,4 +85,3 @@ for tk in searchspace:
         ",",
         moe_perf(tokens=tk, topk=1),
     )
-'''

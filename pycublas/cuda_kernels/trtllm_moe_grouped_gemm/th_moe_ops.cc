@@ -16,10 +16,6 @@ using torch::Tensor;
     CHECK_CONTIGUOUS(x);                                                                                               \
     CHECK_TYPE(x, st)
 
-
-
-
-
 namespace torch_ext
 {
     template <typename T>
