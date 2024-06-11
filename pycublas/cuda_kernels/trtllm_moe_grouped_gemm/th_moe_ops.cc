@@ -73,7 +73,7 @@ namespace torch_ext
         auto configs = moe_gemm_runner.getConfigs();
         assert(configs.size() > 1);
 
-        estimate_best_config_from_occupancies()
+        // estimate_best_config_from_occupancies()
 
         moe_gemm_runner.setBestConfig(configs[0]);
         moe_gemm_runner.moeGemm(act_ptr,

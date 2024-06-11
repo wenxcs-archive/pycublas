@@ -382,7 +382,7 @@ std::vector<cutlass_extensions::CutlassGemmConfig> MoeGemmRunner<T, WeightType>:
         = std::is_same<T, WeightType>::value ? CutlassGemmConfig::NONE : CutlassGemmConfig::WEIGHT_ONLY;
     static constexpr auto simt_only_flag
         = std::is_same<T, float>::value ? CutlassGemmConfig::SIMT_ONLY : CutlassGemmConfig::NONE;
-    int const max_split_k = 2;
+    int const max_split_k = 1;
     int const grouped_gemm_flag = CutlassGemmConfig::GROUPED_GEMM;
     int const enable_hopper = CutlassGemmConfig::NONE;
 
@@ -452,19 +452,7 @@ void MoeGemmRunner<T, WeightType>::dispatchToArch<EpilogueTag>(T const* A, Weigh
     TLLM_CHECK_WITH_INFO(
         sm_ == 90 || !gemm_config.is_sm90, "Hopper configuration provided for non-Hopper architecture");
 
-    if (sm_ >= 70 && sm_ < 75)
-    {
-        dispatchMoeGemmToCutlass<T, WeightType, cutlass::arch::Sm70, EpilogueTag>(A, B, weight_scales, biases, C,
-            total_rows_before_expert, total_rows, gemm_n, gemm_k, num_experts, gemm_config, multi_processor_count_,
-            use_fused_moe, stream, occupancy);
-    }
-    else if (sm_ >= 75 && sm_ < 80)
-    {
-        dispatchMoeGemmToCutlass<T, WeightType, cutlass::arch::Sm75, EpilogueTag>(A, B, weight_scales, biases, C,
-            total_rows_before_expert, total_rows, gemm_n, gemm_k, num_experts, gemm_config, multi_processor_count_,
-            use_fused_moe, stream, occupancy);
-    }
-    else if (sm_ >= 80 && sm_ < 90)
+    if (sm_ >= 80 && sm_ < 90)
     {
         dispatchMoeGemmToCutlass<T, WeightType, cutlass::arch::Sm80, EpilogueTag>(A, B, weight_scales, biases, C,
             total_rows_before_expert, total_rows, gemm_n, gemm_k, num_experts, gemm_config, multi_processor_count_,

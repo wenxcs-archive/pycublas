@@ -46,7 +46,7 @@ def moe_perf(
     return all_time/times
 
 searchspace = list(range(2048, 4097, 256))
-searchspace = [2048]
+searchspace = [1]
 
 for tk in searchspace:
     print(
