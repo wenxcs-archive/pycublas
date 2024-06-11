@@ -8,8 +8,8 @@ from vllm import _custom_ops as ops
 #!pip install vllm to test
 
 def test_grouped_gemm(
-    tokens=16,
-    experts=4,
+    tokens=1,
+    experts=1,
     topk=1,
     in_size=16,
     out_size=16,

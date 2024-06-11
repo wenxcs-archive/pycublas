@@ -56,6 +56,23 @@ namespace torch_ext
         assert(configs.size() > 1);
         // estimate_best_config_from_occupancies()
         moe_gemm_runner.setBestConfig(configs[0]);
+        moe_gemm_runner.moeGemmBiasAct(
+            act_ptr,
+            wt_ptr,
+            weight_scale_ptr,
+            nullptr,
+            res_ptr,
+            total_rows_before_expert_ptr,
+            tensorrt_llm::HopperGroupedGemmInput{},
+            (int64_t)num_rows,
+            (int64_t)gemm_n,
+            (int64_t)gemm_k,
+            experts,
+            tensorrt_llm::ActivationType::Identity,
+            false,
+            stream
+        );
+        /*
         moe_gemm_runner.moeGemm(act_ptr,
                                 wt_ptr,
                                 weight_scale_ptr,
@@ -68,6 +85,7 @@ namespace torch_ext
                                 experts,
                                 false,
                                 stream);
+                                */
         return res;
     }
 
