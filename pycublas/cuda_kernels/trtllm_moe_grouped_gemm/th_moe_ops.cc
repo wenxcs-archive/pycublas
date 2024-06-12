@@ -1,5 +1,7 @@
 #include "moe_gemm_kernels.h"
+#include "moe_kernels.h"
 #include "torch/extension.h"
+
 
 #include "c10/cuda/CUDAStream.h"
 
@@ -39,6 +41,10 @@ namespace torch_ext
         const int64_t gemm_k = activations.size(1);
         const int64_t gemm_n = weights.size(-1);
         const int64_t experts = weights.size(0);
+
+        assert(gemm_k >= 128 / cutlass::sizeof_bits<WeightType>::value);
+        assert(gemm_k% (128 / cutlass::sizeof_bits<WeightType>::value) == 0);
+        assert(gemm_n % (128 / cutlass::sizeof_bits<WeightType>::value) == 0);
 
         assert(activations.size(1) == weights.size(1));
         assert(experts == weight_scales.size(0));
@@ -126,4 +132,5 @@ namespace torch_ext
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("grouped_gemm", &torch_ext::grouped_gemm, "Grouped GEMM with bias");
+    m.def("run_moe", &torch_ext::run_moe, "Run MOE");
 }
