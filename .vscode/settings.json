@@ -25,6 +25,24 @@
         "unordered_set": "cpp",
         "valarray": "cpp",
         "vector": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "__bit_reference": "cpp",
+        "__functional_base": "cpp",
+        "__node_handle": "cpp",
+        "algorithm": "cpp",
+        "chrono": "cpp",
+        "__memory": "cpp",
+        "filesystem": "cpp",
+        "limits": "cpp",
+        "locale": "cpp",
+        "memory": "cpp",
+        "optional": "cpp",
+        "ratio": "cpp",
+        "system_error": "cpp",
+        "tuple": "cpp",
+        "*.tcc": "cpp",
+        "functional": "cpp",
+        "variant": "cpp",
+        "forward_list": "cpp"
     }
 }
