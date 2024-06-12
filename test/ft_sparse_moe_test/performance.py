@@ -9,15 +9,15 @@ def test_grouped_gemm(
     tokens=1024,
     experts=16,
     topk=2,
-    in_size=4096,
-    out_size=6400,
+    in_size=6400,
+    out_size=4096,
     times=100,
 ):
     assert tokens*topk % experts == 0, "tokens*topk % experts != 0"
     torch.manual_seed(1234)
     hidden_state = torch.ones(tokens*topk, in_size).cuda().half()
     print(hidden_state.sum(-1))
-    out = torch.zeros_like(hidden_state)
+    out = torch.zeros(tokens*topk, out_size).cuda().half()
     w1 = (torch.ones(experts, in_size, out_size) * 8).to(torch.int8).cuda()
     w1_scale = torch.ones([experts, out_size]).cuda().half()
     total_rows_before_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().to(torch.int64)

@@ -384,7 +384,7 @@ namespace tensorrt_llm
         using tensorrt_llm::cutlass_extensions::CutlassGemmConfig;
         static constexpr auto weight_only_flag = std::is_same<T, WeightType>::value ? CutlassGemmConfig::NONE : CutlassGemmConfig::WEIGHT_ONLY;
         static constexpr auto simt_only_flag = std::is_same<T, float>::value ? CutlassGemmConfig::SIMT_ONLY : CutlassGemmConfig::NONE;
-        int const max_split_k = 1;
+        int const max_split_k = 2;
         int const grouped_gemm_flag = CutlassGemmConfig::GROUPED_GEMM;
         int const enable_hopper = CutlassGemmConfig::NONE;
 
