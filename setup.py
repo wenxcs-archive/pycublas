@@ -77,6 +77,7 @@ if cuda_arch == 800:
                     f"{project_name}/cuda_kernels/FasterTransformer/cutlass_heuristic.cc",
                     f"{project_name}/cuda_kernels/FasterTransformer/th_moe_ops.cc",
                     f"{project_name}/cuda_kernels/FasterTransformer/logger.cc",
+                    f"{project_name}/cuda_kernels/FasterTransformer/moe_kernels.cu",
                 ],
                 include_dirs=[os.path.join(project_path, f"{project_name}/cuda_kernels/FasterTransformer/"),
                               os.path.join(project_path, f"{project_name}/cuda_kernels/FasterTransformer/cutlass_extensions/include"),
