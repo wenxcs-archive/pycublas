@@ -311,7 +311,7 @@ namespace torch_ext
 #ifdef ENABLE_BF16
         case at::ScalarType::BFloat16:
         {
-            else if (weights.scalar_type() == torch::kInt8 && !is_packed_int4s)
+            if (weights.scalar_type() == torch::kInt8 && !is_packed_int4s)
             {
                 CHECK_INPUT(weights, torch::kInt8);
                 return grouped_gemm_bias_helper<__nv_bfloat16, uint8_t>(
