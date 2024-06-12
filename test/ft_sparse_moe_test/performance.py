@@ -36,7 +36,7 @@ def test_grouped_gemm(
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         start.record()
-        ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert, out, 5, 14)
+        ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert, out, 5, 20)
         end.record()
         torch.cuda.synchronize()
         if j >= 10:
