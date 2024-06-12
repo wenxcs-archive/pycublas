@@ -132,5 +132,4 @@ namespace torch_ext
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("grouped_gemm", &torch_ext::grouped_gemm, "Grouped GEMM with bias");
-    m.def("run_moe", &torch_ext::run_moe, "Run MOE");
 }
