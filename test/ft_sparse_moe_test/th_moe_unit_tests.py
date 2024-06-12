@@ -52,7 +52,7 @@ def apply_act(inp, act_str):
 
 class TestGroupedGemmBias(unittest.TestCase):
     def setUp(self) -> None:
-        self.grouped_gemm_bias = ft_moe.moe_unit_ops.grouped_gemm_bias
+        self.grouped_gemm_bias = ft_moe.grouped_gemm_bias
         self.preprocess_weights_for_mixed_gemm = ft_moe.preprocess_weights_for_mixed_gemm
         self.symmetric_quantizer = ft_moe._symmetric_quantize_last_axis_of_batched_matrix
 

@@ -27,5 +27,5 @@ namespace fastertransformer {
 #ifdef ENABLE_BF16
 template class MoeGemmRunner<__nv_bfloat16, uint8_t>;
 #endif
-template class MoeGemmRunner<__half, uint8_t>;
+template class MoeGemmRunner<half, uint8_t>;
 }  // namespace fastertransformer

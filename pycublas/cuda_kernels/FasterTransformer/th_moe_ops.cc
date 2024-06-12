@@ -293,39 +293,12 @@ namespace torch_ext
 
         switch (_st)
         {
-        case at::ScalarType::Float:
-        {
-            if (weights.scalar_type() == _st)
-            {
-                CHECK_INPUT(weights, torch::kFloat32);
-                return grouped_gemm_bias_helper<float, float>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
-            }
-            else
-            {
-                std::string err_msg = "Unsupported weight type " + std::string(at::toString(weights.scalar_type()));
-                TORCH_CHECK(false, err_msg);
-            }
-            break;
-        }
         case at::ScalarType::Half:
         {
-            if (weights.scalar_type() == _st)
-            {
-                CHECK_INPUT(weights, torch::kFloat16);
-                return grouped_gemm_bias_helper<half, half>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
-            }
-            else if (weights.scalar_type() == torch::kInt8 && !is_packed_int4s)
+            if (weights.scalar_type() == torch::kInt8 && !is_packed_int4s)
             {
                 CHECK_INPUT(weights, torch::kInt8);
                 return grouped_gemm_bias_helper<half, uint8_t>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
-            }
-            else if (weights.scalar_type() == torch::kInt8 && is_packed_int4s)
-            {
-                CHECK_INPUT(weights, torch::kInt8);
-                return grouped_gemm_bias_helper<half, cutlass::uint4b_t>(
                     activations, weights, weight_scales, biases, rows_per_expert, activation_type);
             }
             else
@@ -338,22 +311,10 @@ namespace torch_ext
 #ifdef ENABLE_BF16
         case at::ScalarType::BFloat16:
         {
-            if (weights.scalar_type() == _st)
-            {
-                CHECK_INPUT(weights, torch::kBFloat16);
-                return grouped_gemm_bias_helper<__nv_bfloat16, __nv_bfloat16>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
-            }
             else if (weights.scalar_type() == torch::kInt8 && !is_packed_int4s)
             {
                 CHECK_INPUT(weights, torch::kInt8);
                 return grouped_gemm_bias_helper<__nv_bfloat16, uint8_t>(
-                    activations, weights, weight_scales, biases, rows_per_expert, activation_type);
-            }
-            else if (weights.scalar_type() == torch::kInt8 && is_packed_int4s)
-            {
-                CHECK_INPUT(weights, torch::kInt8);
-                return grouped_gemm_bias_helper<__nv_bfloat16, cutlass::uint4b_t>(
                     activations, weights, weight_scales, biases, rows_per_expert, activation_type);
             }
             else
