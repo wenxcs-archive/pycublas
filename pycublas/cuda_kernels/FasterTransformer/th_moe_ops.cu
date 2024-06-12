@@ -29,6 +29,7 @@
 #include <torch/custom_class.h>
 #include <torch/script.h>
 
+#include "moe_gemm_kernels_template.h"
 #include "moe_gemm_kernels.h"
 #include "utils/cuda_bf16_wrapper.h"
 #include "moe_kernels.h"
@@ -49,6 +50,11 @@ T *get_ptr(Tensor t)
 {
     return (T *)t.data_ptr();
 }
+
+namespace fastertransformer
+{
+    CutlassMoeFCRunner<half, uint8_t> moe_runner;
+} // namespace fastertransformer
 
 namespace torch_ext
 {
@@ -80,8 +86,9 @@ namespace torch_ext
     }
 
     std::vector<Tensor>
-    symmetric_quantize_helper(Tensor weight, torch::ScalarType quant_type, bool return_unprocessed_quantized_tensor)
+    symmetric_quantize_helper(Tensor weight,  bool return_unprocessed_quantized_tensor)
     {
+        torch::ScalarType quant_type = torch::kInt8;
         CHECK_CPU(weight);
         CHECK_CONTIGUOUS(weight);
         TORCH_CHECK(weight.numel() != 0, "weight should not be empty tensor");
@@ -167,13 +174,15 @@ namespace torch_ext
     // Same as symmetric_quantize_last_axis_of_batched_matrix but returns a tuple of:
     // (unprocessed_quantized_weights, preprocessed_quantized_weights, scales)
     // Exposed mainly for testing, so that the unprocessed weights can be passed to torch functions.
-    std::vector<Tensor> _symmetric_quantize_last_axis_of_batched_matrix(Tensor weight, torch::ScalarType quant_type)
+    std::vector<Tensor> _symmetric_quantize_last_axis_of_batched_matrix(Tensor weight)
     {
-        return symmetric_quantize_helper(weight, quant_type, true);
+        torch::ScalarType quant_type = torch::kInt8;
+        return symmetric_quantize_helper(weight, true);
     }
 
-    Tensor preprocess_weights_for_mixed_gemm(Tensor row_major_quantized_weight, torch::ScalarType quant_type)
+    Tensor preprocess_weights_for_mixed_gemm(Tensor row_major_quantized_weight)
     {
+        torch::ScalarType quant_type = torch::kInt8;
         auto _st = row_major_quantized_weight.scalar_type();
         CHECK_CPU(row_major_quantized_weight);
         CHECK_CONTIGUOUS(row_major_quantized_weight);
@@ -198,7 +207,6 @@ namespace torch_ext
 
         return processed_tensor;
     }
-
 
     template <typename T, typename WeightType>
     Tensor grouped_gemm_bias_helper(Tensor activations,
@@ -564,42 +572,17 @@ namespace torch_ext
             }
             break;
         }
-        case at::ScalarType::BFloat16:
-        {
-            if (quant_type == torch::kInt8)
-            {
-                output_tensor = run_moe_fc_helper<__nv_bfloat16, uint8_t>(input_activations,
-                                                                          gating_output,
-                                                                          fc1_expert_weights,
-                                                                          fc1_scales,
-                                                                          fc1_expert_biases,
-                                                                          fc1_activation_type,
-                                                                          fc2_expert_weights,
-                                                                          fc2_scales,
-                                                                          fc2_expert_biases,
-                                                                          skip_layer,
-                                                                          finished,
-                                                                          active_rows,
-                                                                          k);
-            }
-            else
-            {
-                std::string err_msg = "Unsupported weight type " + std::string(at::toString(quant_type));
-                throw std::runtime_error(err_msg);
-            }
-            break;
-        }
         default:
             throw std::runtime_error("Wrong Tensor type.");
         }
         return output_tensor;
     }
+}
 
-    PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
-    {
-        m.def("grouped_gemm_bias", &grouped_gemm_bias, "");
-        m.def("run_moe_fc", &run_moe_fc, "");
-        m.def("preprocess_weights_for_mixed_gemm", &preprocess_weights_for_mixed_gemm, "");
-        m.def("_symmetric_quantize_last_axis_of_batched_matrix", &_symmetric_quantize_last_axis_of_batched_matrix, "");
-    }
+PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
+{
+    m.def("grouped_gemm_bias", &torch_ext::grouped_gemm_bias, "");
+    m.def("run_moe_fc", &torch_ext::run_moe_fc, "");
+    m.def("preprocess_weights_for_mixed_gemm", &torch_ext::preprocess_weights_for_mixed_gemm, "");
+    m.def("_symmetric_quantize_last_axis_of_batched_matrix", &torch_ext::_symmetric_quantize_last_axis_of_batched_matrix, "");
 }

@@ -94,8 +94,8 @@ class TestGroupedGemmBias(unittest.TestCase):
       m, n, k = 128, 128, 128
       weights = torch.randint(lower_bound, upper_bound, [k, n], dtype=torch.int8, device="cpu")
 
-      packed_weight = self.pack_int4s(weights) if quant_type == torch.quint4x2 else weights
-      cuda_weights = self.preprocess_weights_for_mixed_gemm(packed_weight, quant_type).to("cuda")
+      packed_weight = weights
+      cuda_weights = self.preprocess_weights_for_mixed_gemm(packed_weight).to("cuda")
       weights = weights.to("cuda")
 
       act = torch.eye(m, dtype=weight_type, device="cuda")
@@ -131,7 +131,7 @@ class TestGroupedGemmBias(unittest.TestCase):
                     cpu_weights = torch_weights.cpu()
 
                     if quantize:
-                        ref_torch_weights, act_torch_weights, torch_weight_scales = self.symmetric_quantizer(cpu_weights, weight_dtype)
+                        ref_torch_weights, act_torch_weights, torch_weight_scales = self.symmetric_quantizer(cpu_weights)
                         ref_torch_weights = self.unpack_packed_int4s(ref_torch_weights) if weight_dtype == torch.quint4x2 else ref_torch_weights
                         ref_torch_weights = ref_torch_weights.to("cuda")
                         act_torch_weights = act_torch_weights.to("cuda")

@@ -1023,17 +1023,10 @@ template void topk_gating_softmax_kernelLauncher(const __nv_bfloat16*,
 #endif
 
 // ==================== Variable batched GEMM specializations ==================================
-template class CutlassMoeFCRunner<float, float>;
+// template class CutlassMoeFCRunner<float, float>;
 
-#ifdef ENABLE_BF16
-template class CutlassMoeFCRunner<__nv_bfloat16, __nv_bfloat16>;
 template class CutlassMoeFCRunner<__nv_bfloat16, uint8_t>;
-template class CutlassMoeFCRunner<__nv_bfloat16, cutlass::uint4b_t>;
-#endif
-
-template class CutlassMoeFCRunner<half, half>;
 template class CutlassMoeFCRunner<half, uint8_t>;
-template class CutlassMoeFCRunner<half, cutlass::uint4b_t>;
 
 // ===================== Specializations for init routing =========================
 template void initialize_moe_routing_kernelLauncher(
