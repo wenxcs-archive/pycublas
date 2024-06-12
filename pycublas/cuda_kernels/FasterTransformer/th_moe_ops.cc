@@ -18,7 +18,6 @@
 #undef __CUDA_NO_HALF_OPERATORS__
 #undef __CUDA_NO_BFLOAT16_CONVERSIONS__
 #undef __CUDA_NO_HALF2_OPERATORS__
-
 #define ENABLE_BF16
 #define BUILD_CUTLASS_MOE
 
@@ -33,6 +32,7 @@
 #include "moe_gemm_kernels.h"
 #include "utils/cuda_bf16_wrapper.h"
 #include "moe_kernels.h"
+#include "cutlass_preprocessors.h"
 
 #include "cutlass/numeric_types.h"
 
@@ -40,15 +40,165 @@ using torch::Tensor;
 
 #define CHECK_INPUT(x, y) TORCH_CHECK(x.scalar_type() == y, #x " must be of type " #y)
 #define CHECK_TH_CUDA(x) TORCH_CHECK(x.is_cuda(), #x " must be a CUDA tensor")
+#define CHECK_CPU(x) TORCH_CHECK(!x.is_cuda(), #x " must be a CPU tensor")
 #define CHECK_CONTIGUOUS(x) TORCH_CHECK(x.is_contiguous(), #x " must be contiguous")
+
+
+template <typename T>
+T *get_ptr(Tensor t)
+{
+    return (T *)t.data_ptr();
+}
 
 namespace torch_ext
 {
-    template <typename T>
-    T *get_ptr(Tensor t)
+    namespace ft = fastertransformer;
+
+    ft::QuantType get_ft_quant_type(torch::ScalarType quant_type)
     {
-        return (T *)t.data_ptr();
+        if (quant_type == torch::kInt8) {
+            return ft::QuantType::INT8_WEIGHT_ONLY;
+        }
+    #ifdef TORCH_IS_AT_LEAST_v190
+        else if (quant_type == at::ScalarType::QUInt4x2) {
+            return ft::QuantType::PACKED_INT4_WEIGHT_ONLY;
+        }
+    #endif
+        else {
+            TORCH_CHECK(false, "Invalid quantization type");
+        }
     }
+
+    void check_quant_type_allowed(torch::ScalarType quant_type)
+    {
+    #ifdef TORCH_IS_AT_LEAST_v190
+        TORCH_CHECK(quant_type == torch::kInt8 || quant_type == at::ScalarType::QUInt4x2,
+                    "Must be int4 or int8 quantization");
+    #else
+        TORCH_CHECK(quant_type == torch::kInt8, "Must be int8 quantization");
+    #endif
+    }
+
+    std::vector<Tensor>
+    symmetric_quantize_helper(Tensor weight, torch::ScalarType quant_type, bool return_unprocessed_quantized_tensor)
+    {
+        CHECK_CPU(weight);
+        CHECK_CONTIGUOUS(weight);
+        TORCH_CHECK(weight.numel() != 0, "weight should not be empty tensor");
+        TORCH_CHECK(weight.dim() == 2 || weight.dim() == 3, "Invalid dim. The dim of weight should be 2 or 3");
+
+        auto _st = weight.scalar_type();
+        TORCH_CHECK(_st == torch::kFloat32 || _st == torch::kFloat16 || _st == torch::kBFloat16,
+                    "Invalid datatype. Weight must be FP16 or BF16");
+        check_quant_type_allowed(quant_type);
+        ft::QuantType ft_quant_type = get_ft_quant_type(quant_type);
+
+        const size_t num_experts = weight.dim() == 2 ? 1 : weight.size(0);
+        const size_t num_rows    = weight.size(-2);
+        const size_t num_cols    = weight.size(-1);
+
+        const size_t bits_in_type      = get_bits_in_quant_type(ft_quant_type);
+        const size_t bytes_per_out_col = num_cols * bits_in_type / 8;
+
+        const size_t input_mat_size     = num_rows * num_cols;
+        const size_t quantized_mat_size = num_rows * bytes_per_out_col;
+
+        std::vector<long int> quantized_weight_shape;
+        std::vector<long int> scale_shape;
+        if (weight.dim() == 2) {
+            quantized_weight_shape = {long(num_rows), long(bytes_per_out_col)};
+            scale_shape            = {long(num_cols)};
+        }
+        else if (weight.dim() == 3) {
+            quantized_weight_shape = {long(num_experts), long(num_rows), long(bytes_per_out_col)};
+            scale_shape            = {long(num_experts), long(num_cols)};
+        }
+        else {
+            TORCH_CHECK(false, "Invalid weight dimension. Weight must have dim 2 or 3");
+        }
+
+        Tensor unprocessed_quantized_weight =
+            torch::empty(quantized_weight_shape, torch::dtype(torch::kInt8).device(torch::kCPU).requires_grad(false));
+
+        Tensor processed_quantized_weight = torch::empty_like(unprocessed_quantized_weight);
+
+        Tensor scales = torch::empty(scale_shape, torch::dtype(weight.dtype()).device(torch::kCPU).requires_grad(false));
+
+        int8_t* unprocessed_quantized_weight_ptr = get_ptr<int8_t>(unprocessed_quantized_weight);
+        int8_t* processed_quantized_weight_ptr   = get_ptr<int8_t>(processed_quantized_weight);
+
+        if (weight.scalar_type() == at::ScalarType::Float) {
+            ft::symmetric_quantize<float, float>(processed_quantized_weight_ptr,
+                                                unprocessed_quantized_weight_ptr,
+                                                get_ptr<float>(scales),
+                                                get_ptr<const float>(weight),
+                                                {num_experts, num_rows, num_cols},
+                                                ft_quant_type);
+        }
+        else if (weight.scalar_type() == at::ScalarType::Half) {
+            ft::symmetric_quantize<half, half>(processed_quantized_weight_ptr,
+                                            unprocessed_quantized_weight_ptr,
+                                            get_ptr<half>(scales),
+                                            get_ptr<const half>(weight),
+                                            {num_experts, num_rows, num_cols},
+                                            ft_quant_type);
+        }
+    #ifdef ENABLE_BF16
+        else if (weight.scalar_type() == at::ScalarType::BFloat16) {
+            ft::symmetric_quantize<__nv_bfloat16, __nv_bfloat16>(processed_quantized_weight_ptr,
+                                                                unprocessed_quantized_weight_ptr,
+                                                                get_ptr<__nv_bfloat16>(scales),
+                                                                get_ptr<const __nv_bfloat16>(weight),
+                                                                {num_experts, num_rows, num_cols},
+                                                                ft_quant_type);
+        }
+    #endif
+        else {
+            TORCH_CHECK(false, "Invalid datatype. Weight must be BF16/FP16");
+        }
+
+        if (return_unprocessed_quantized_tensor) {
+            return std::vector<Tensor>{unprocessed_quantized_weight, processed_quantized_weight, scales};
+        }
+
+        return std::vector<Tensor>{processed_quantized_weight, scales};
+    }
+
+    // Same as symmetric_quantize_last_axis_of_batched_matrix but returns a tuple of:
+    // (unprocessed_quantized_weights, preprocessed_quantized_weights, scales)
+    // Exposed mainly for testing, so that the unprocessed weights can be passed to torch functions.
+    std::vector<Tensor> _symmetric_quantize_last_axis_of_batched_matrix(Tensor weight, torch::ScalarType quant_type)
+    {
+        return symmetric_quantize_helper(weight, quant_type, true);
+    }
+
+    Tensor preprocess_weights_for_mixed_gemm(Tensor row_major_quantized_weight, torch::ScalarType quant_type)
+    {
+        auto _st = row_major_quantized_weight.scalar_type();
+        CHECK_CPU(row_major_quantized_weight);
+        CHECK_CONTIGUOUS(row_major_quantized_weight);
+        TORCH_CHECK(_st == torch::kInt8, "Quantized tensor must be int8 dtype");
+        check_quant_type_allowed(quant_type);
+        TORCH_CHECK(row_major_quantized_weight.dim() == 2 || row_major_quantized_weight.dim() == 3,
+                    "Invalid dim. The dim of weight should be 2 or 3");
+
+        ft::QuantType ft_quant_type      = get_ft_quant_type(quant_type);
+        const size_t  bits_in_quant_type = get_bits_in_quant_type(ft_quant_type);
+
+        const size_t num_experts = row_major_quantized_weight.dim() == 2 ? 1 : row_major_quantized_weight.size(0);
+        const size_t num_rows    = row_major_quantized_weight.size(-2);
+        const size_t num_cols    = (8 / bits_in_quant_type) * row_major_quantized_weight.size(-1);
+
+        Tensor  processed_tensor = torch::zeros_like(row_major_quantized_weight);
+        int8_t* input_byte_ptr   = get_ptr<int8_t>(row_major_quantized_weight);
+        int8_t* output_byte_ptr  = get_ptr<int8_t>(processed_tensor);
+
+        ft::preprocess_weights_for_mixed_gemm(
+            output_byte_ptr, input_byte_ptr, {num_experts, num_rows, num_cols}, ft_quant_type);
+
+        return processed_tensor;
+    }
+
 
     template <typename T, typename WeightType>
     Tensor grouped_gemm_bias_helper(Tensor activations,
@@ -484,9 +634,11 @@ namespace torch_ext
         return output_tensor;
     }
 
-    TORCH_LIBRARY(moe_unit_ops, m)
+    PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     {
-        m.def("grouped_gemm_bias", grouped_gemm_bias);
-        m.def("run_moe_fc", run_moe_fc);
+        m.def("grouped_gemm_bias", &grouped_gemm_bias, "");
+        m.def("run_moe_fc", &run_moe_fc, "");
+        m.def("preprocess_weights_for_mixed_gemm", &preprocess_weights_for_mixed_gemm, "");
+        m.def("_symmetric_quantize_last_axis_of_batched_matrix", &_symmetric_quantize_last_axis_of_batched_matrix, "");
     }
 }

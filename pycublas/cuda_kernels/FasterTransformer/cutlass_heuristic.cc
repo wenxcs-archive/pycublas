@@ -13,6 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+// DISABLE Pytorch CUDAExtension Flags
+#undef __CUDA_NO_HALF_CONVERSIONS__
+#undef __CUDA_NO_HALF_OPERATORS__
+#undef __CUDA_NO_BFLOAT16_CONVERSIONS__
+#undef __CUDA_NO_HALF2_OPERATORS__
 #define ENABLE_BF16
 #define BUILD_CUTLASS_MOE
 
