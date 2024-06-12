@@ -32,7 +32,8 @@ namespace torch_ext
                                     Tensor weight_scales,
                                     Tensor total_rows_before_expert,
                                     Tensor res,
-                                    int activation_type
+                                    int activation_type,
+                                    int config_id
                                     )
     {
         const at::ScalarType _st = activations.scalar_type();
@@ -73,7 +74,7 @@ namespace torch_ext
         auto configs = moe_gemm_runner.getConfigs();
         assert(configs.size() > 1);
         // estimate_best_config_from_occupancies()
-        moe_gemm_runner.setBestConfig(configs[1]);
+        moe_gemm_runner.setBestConfig(configs[config_id]);
         moe_gemm_runner.moeGemmBiasAct(
             act_ptr,
             wt_ptr,
@@ -98,7 +99,8 @@ namespace torch_ext
                              Tensor weight_scales,
                              Tensor total_rows_before_expert,
                              Tensor out,
-                             int activation_type)
+                             int activation_type,
+                             int config_id = 0)
     {
         const at::ScalarType _st = activations.scalar_type();
         CHECK_INPUT(activations, _st);
@@ -113,7 +115,7 @@ namespace torch_ext
             {
                 CHECK_INPUT(weights, torch::kInt8);
                 return grouped_gemm_helper<__half, uint8_t>(
-                    activations, weights, weight_scales, total_rows_before_expert, out, activation_type);
+                    activations, weights, weight_scales, total_rows_before_expert, out, activation_type, config_id);
             }
             else
             {

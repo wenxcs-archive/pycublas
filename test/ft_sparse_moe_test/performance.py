@@ -6,35 +6,48 @@ import pycublas.trtllm_moe_grouped_gemm as ft_moe
 from vllm import _custom_ops as ops
 
 def test_grouped_gemm(
-    tokens=1,
-    experts=1,
-    topk=1,
-    in_size=32,
-    out_size=16,
+    tokens=1024,
+    experts=16,
+    topk=2,
+    in_size=4096,
+    out_size=6400,
+    times=100,
 ):
     assert tokens*topk % experts == 0, "tokens*topk % experts != 0"
     torch.manual_seed(1234)
-    hidden_state = torch.randn(tokens*topk, in_size).cuda().half()
+    hidden_state = torch.ones(tokens*topk, in_size).cuda().half()
     print(hidden_state.sum(-1))
     out = torch.zeros_like(hidden_state)
-    w1 = (torch.ones(experts, in_size, out_size)).to(torch.int8).cuda()
-    w1_scale = torch.ones([experts]).cuda().half()
+    w1 = (torch.ones(experts, in_size, out_size) * 8).to(torch.int8).cuda()
+    w1_scale = torch.ones([experts, out_size]).cuda().half()
     total_rows_before_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().to(torch.int64)
     for i in range(1, experts):
         total_rows_before_expert[i] = total_rows_before_expert[i-1] + total_rows_before_expert[i]
-    for i in range(1, experts):
-        total_rows_before_expert[i] = total_rows_before_expert[i] - total_rows_before_expert[0] + 1
-    total_rows_before_expert[0] = 1
+    #for i in range(1, experts):
+    #    total_rows_before_expert[i] = total_rows_before_expert[i] - total_rows_before_expert[0] + 1
+    #total_rows_before_expert[0] = tokens
     print()
     print(f"total_rows_before_expert: {total_rows_before_expert}, {hidden_state.size(0)}")
     print(f"hidden_state: {hidden_state.shape}")
     print(f"w1: {w1.shape}")
     print(f"w1_scale: {w1_scale}")
-    ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert, out, 5)
+    all_time = 0.0
+    for j in range(10 + times):
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+        start.record()
+        ft_moe.grouped_gemm(hidden_state, w1, w1_scale, total_rows_before_expert, out, 5, 14)
+        end.record()
+        torch.cuda.synchronize()
+        if j >= 10:
+            all_time += start.elapsed_time(end)
+    
+    print(all_time/times, "ms")
+
     print(out.shape)
     print(out)
 
-    print(hidden_state @ torch.ones_like(w1).half().view(in_size, out_size))
+    #print(hidden_state @ torch.ones_like(w1).half().view(in_size, out_size))
 
 
 def moe_perf(
