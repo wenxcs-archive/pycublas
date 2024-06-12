@@ -37,10 +37,10 @@ namespace torch_ext
         auto stream = at::cuda::getCurrentCUDAStream().stream();
         const int num_rows = activations.size(0);
         const int64_t gemm_k = activations.size(1);
-        const int64_t gemm_n = weights.size(1);
+        const int64_t gemm_n = weights.size(-1);
         const int64_t experts = weights.size(0);
 
-        assert(activations.size(1) == weights.size(2));
+        assert(activations.size(1) == weights.size(1));
         assert(experts == weight_scales.size(0));
         assert(total_rows_before_expert.dtype() == torch::kInt64);
 
@@ -67,7 +67,7 @@ namespace torch_ext
         auto configs = moe_gemm_runner.getConfigs();
         assert(configs.size() > 1);
         // estimate_best_config_from_occupancies()
-        moe_gemm_runner.setBestConfig(configs[0]);
+        moe_gemm_runner.setBestConfig(configs[1]);
         moe_gemm_runner.moeGemmBiasAct(
             act_ptr,
             wt_ptr,
@@ -83,20 +83,7 @@ namespace torch_ext
             (tensorrt_llm::ActivationType)activation_type,
             fused_moe,
             stream);
-        /*
-        moe_gemm_runner.moeGemm(act_ptr,
-                                wt_ptr,
-                                weight_scale_ptr,
-                                res_ptr,
-                                total_rows_before_expert_ptr,
-                                tensorrt_llm::HopperGroupedGemmInput{},
-                                num_rows,
-                                gemm_n,
-                                gemm_k,
-                                experts,
-                                false,
-                                stream);
-                                */
+
         return res;
     }
 
