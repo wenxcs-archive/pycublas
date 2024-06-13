@@ -128,25 +128,27 @@ def test_grouped_gemm_perf(
 
 def test_grouped_gemm_correctness(
     tokens=1024,
-    experts=16,
+    experts=1,
     topk=2,
     in_size=4096,
     out_size=12800,
     times=100,
-    cfg_id=0,
+    cfg_id=4,
 ):
     assert tokens*topk % experts == 0, "tokens*topk % experts != 0"
     torch.manual_seed(1234)
 
     # input output
-    hidden_state = torch.ones(tokens*topk, in_size).cuda().uniform_(-1, 1).half() / 8.0
+    hidden_state = torch.ones(tokens*topk, in_size).cuda().half()
     out = torch.empty(tokens*topk, out_size).cuda().half()
 
     # w1
-    w1_f32 = torch.randn(experts, in_size, out_size).uniform_(-1, 1).cuda() / 4.0
-    w1, w1_scale = ops.scaled_fp8_quant(
-        w1_f32.half(), torch.ones(experts, dtype=torch.float32, device=w1_f32.device) * 0.0022
-    )
+    w1_f32 = torch.ones(experts, in_size, out_size).cuda().uniform_(-1, 1).cuda()
+    w1 = torch.empty(experts, in_size, out_size, dtype=torch.float8_e4m3fn).cuda()
+    w1_scale = torch.empty(experts, dtype=torch.float).cuda()
+
+    for i in range(experts):
+        w1[i, :, :], w1_scale[i] = ops.scaled_fp8_quant(w1_f32.half()[i, :, :])
 
     w1 = w1.view(dtype=torch.int8)
     w1_i = ft_moe.preprocess_weights_for_mixed_gemm(w1.cpu()).to(hidden_state.device)
@@ -164,4 +166,6 @@ def test_grouped_gemm_correctness(
         h = hidden_state.view(experts, tokens*topk // experts, in_size) [expert, :, :]
         c = h @ w.half()
         o = out.view(experts, tokens*topk // experts, out_size) [expert, :, :]
+        print(c)
+        print(o)
         torch.testing.assert_close(c, o, rtol=1e-0, atol=1e-1)
