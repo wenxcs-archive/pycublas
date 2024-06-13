@@ -160,9 +160,6 @@ def test_grouped_gemm_correctness(
 
     w1 = w1.view(dtype=torch.int8)
     w1_i = ft_moe.preprocess_weights_for_mixed_gemm(w1.cpu()).to(hidden_state.device)
-    w1_i_i = ft_moe.preprocess_weights_for_mixed_gemm(w1_i.cpu()).to(hidden_state.device)
-    #print(w1_i, w1_i_i)
-    #torch.testing.assert_close(w1, w1_i_i)
 
     g_w1_scale = w1_scale.to(dtype=torch.float16).unsqueeze(1).expand(-1, out_size).contiguous()
 
