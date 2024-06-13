@@ -67,74 +67,64 @@ def timeit_decorator_cudagraph(times=100):
         return wrapper
     return decorator
 
-def test_grouped_gemm(
-    tokens=1024,
-    experts=16,
+def test_grouped_gemm_perf(
+    experts=2,
     topk=2,
     in_size=4096,
     out_size=12800,
     times=100,
 ):
-    assert tokens*topk % experts == 0, "tokens*topk % experts != 0"
     torch.manual_seed(1234)
-
-    # input output
-    hidden_state = torch.randn(tokens*topk, in_size).cuda().half()
-    out = torch.zeros(tokens*topk, out_size).cuda().half()
-
-    # w1
     w1_f32 = torch.randn(experts, in_size, out_size).cuda()
     w1, w1_scale = ops.scaled_fp8_quant(
         w1_f32.half(), torch.ones(experts, dtype=torch.float32, device=w1_f32.device) * 0.0022
     )
     w1 = w1.view(dtype=torch.int8)
-
     g_w1_scale = w1_scale.to(dtype=torch.float16).unsqueeze(1).expand(-1, out_size).contiguous()
-
-    total_rows_before_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().to(torch.int64)
-    for i in range(1, experts):
-        total_rows_before_expert[i] = total_rows_before_expert[i-1] + total_rows_before_expert[i]
     
-    cfg_id = 29 if out_size == 12800 else 14
-    
-    def run_cuda_graph(*args, **kwargs):
-        ft_moe.grouped_gemm(*args, **kwargs)
+    searchspace = list(range(32, 256, 32)) + list(range(256, 4097, 256))
+    searchspace = [1]
+    best_configs = dict()
+    for tokens in searchspace:
+        # input output
+        assert tokens*topk % experts == 0, "tokens*topk % experts != 0"
+        hidden_state = torch.randn(tokens*topk, in_size).cuda().half()
+        out = torch.zeros(tokens*topk, out_size).cuda().half()
 
-    for cfg_id in range(0, 30):
-        all_time = 0.0
-        for j in range(10 + times):
-            start = torch.cuda.Event(enable_timing=True)
-            end = torch.cuda.Event(enable_timing=True)
-            start.record()
-            run_cuda_graph(hidden_state, w1, g_w1_scale, total_rows_before_expert, out, 5, cfg_id)
-            end.record()
-            torch.cuda.synchronize()
-            elapsed_time_ms = start.elapsed_time(end)
+        total_rows_before_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().to(torch.int64)
+        for i in range(1, experts):
+            total_rows_before_expert[i] = total_rows_before_expert[i-1] + total_rows_before_expert[i]
+        
+        min_time = 1000000.0
+        min_cfg_id = 0
 
-            if j >= 10:
-                all_time += elapsed_time_ms
+        for cfg_id in range(0, 30):
+            all_time = 0.0
+            for j in range(10 + times):
+                start = torch.cuda.Event(enable_timing=True)
+                end = torch.cuda.Event(enable_timing=True)
+                start.record()
+                ft_moe.grouped_gemm(hidden_state, w1, g_w1_scale, total_rows_before_expert, out, 5, cfg_id)
+                end.record()
+                torch.cuda.synchronize()
+                elapsed_time_ms = start.elapsed_time(end)
+
+                if j >= 10:
+                    all_time += elapsed_time_ms
             
-        print(f"{tokens}, {cfg_id}, {in_size}, {out_size}, {all_time/times:.3f}")
-
-    for expert in range(experts):
-        w = w1_f32[expert, :, :]
-        h = hidden_state.view(experts, tokens*topk // experts, in_size) [expert, :, :]
-        c = h @ w.half()
-        o = out.view(experts, tokens*topk // experts, out_size) [expert, :, :]
-        print(c)
-        print(o)
-        torch.testing.assert_close(c, o, rtol=1e-1, atol=1e-2)
+            if all_time < min_time:
+                min_time = all_time
+                min_cfg_id = cfg_id
+                print(f"new config id > {tokens}, {cfg_id}, {in_size}, {out_size}, {all_time/times:.3f}")
+        
+        best_configs[tokens] = min_cfg_id
     
-    #print(f"{tokens}, {topk}, {experts}, {tokens*topk}, {in_size}, {out_size}, {all_time/times:.3f}")
+    print({ in_size:best_configs})
 
-#for t in [128, 256, 512, 1024, 2048]:
-#    for shape in [(4096, 12800), (6400, 4096)]:
-#        test_grouped_gemm(tokens=t, experts=16, topk=2, in_size=shape[0], out_size=shape[1])
-
-
-# Config performance tuning
-
-# Corectness check
+# key = sorted_ids.size(0) // 2  // 16
+# {4096:{1:4, 32: 5, 64: 4, 96: 5, 128: 4, 160: 17, 192: 17, 224: 16, 256: 16, 512: 23, 768: 26, 1024: 26, 1280: 23, 1536: 23, 1792: 26, 2048: 26, 2304: 27, 2560: 27, 2816: 27, 3072: 27, 3328: 27, 3584: 26, 3840: 26, 4096: 26}}
+# {6400: {1:4, 32: 4, 64: 4, 96: 4, 128: 4, 160: 16, 192: 16, 224: 16, 256: 16, 512: 20, 768: 26, 1024: 26, 1280: 22, 1536: 20, 1792: 26, 2048: 26, 2304: 20, 2560: 21, 2816: 26, 3072: 27, 3328: 26, 3584: 26, 3840: 26, 4096: 26}}
+        
 
 def test_grouped_gemm_correctness(
     tokens=1024,
