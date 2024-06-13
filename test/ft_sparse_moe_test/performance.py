@@ -149,11 +149,11 @@ def test_grouped_gemm_correctness(
     torch.manual_seed(1234)
 
     # input output
-    hidden_state = torch.ones(tokens*topk, in_size).cuda().uniform_(-1, 1).half()
+    hidden_state = torch.ones(tokens*topk, in_size).cuda().uniform_(-1, 1).half() / 8.0
     out = torch.empty(tokens*topk, out_size).cuda().half()
 
     # w1
-    w1_f32 = torch.randn(experts, in_size, out_size).uniform_(-1, 1).cuda()
+    w1_f32 = torch.randn(experts, in_size, out_size).uniform_(-1, 1).cuda() / 4.0
     w1, w1_scale = ops.scaled_fp8_quant(
         w1_f32.half(), torch.ones(experts, dtype=torch.float32, device=w1_f32.device) * 0.0022
     )
