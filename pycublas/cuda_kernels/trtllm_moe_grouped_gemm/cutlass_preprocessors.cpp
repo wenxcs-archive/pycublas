@@ -410,7 +410,7 @@ void add_bias_and_interleave_int8s_inplace(int8_t* int8_tensor, const size_t num
 {
     for (int ii = 0; ii < num_elts; ++ii)
     {
-        int8_tensor[ii] = int8_t(int(int8_tensor[ii]) + 128);
+        // int8_tensor[ii] = int8_t(int(int8_tensor[ii]) + 128);
     }
 
     // Step 2 will transform the layout of a 32-bit register in CUDA in order to match the int4 layout. This has no
@@ -602,7 +602,7 @@ void preprocess_weights_for_mixed_gemm(int8_t* preprocessed_quantized_weight, in
 
     if (arch >= 70 && arch < 90)
     {
-        add_bias_and_interleave_quantized_tensor_inplace(src_buf.data(), num_elts, quant_type);
+        // add_bias_and_interleave_quantized_tensor_inplace(src_buf.data(), num_elts, quant_type);
     }
     std::copy(src_buf.begin(), src_buf.end(), preprocessed_quantized_weight);
 }

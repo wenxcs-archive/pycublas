@@ -6,6 +6,7 @@
 #include "c10/cuda/CUDAStream.h"
 
 #include "cutlass_extensions/gemm_configs.h"
+#include "cutlass_preprocessors.h"
 
 using torch::Tensor;
 
@@ -128,10 +129,33 @@ namespace torch_ext
             TORCH_CHECK(false, "Incompatible tensor type for grouped gemm bias");
         }
     }
+
+    Tensor preprocess_weights_for_mixed_gemm(Tensor row_major_quantized_weight)
+    {
+        CHECK_CPU(row_major_quantized_weight);
+        CHECK_CONTIGUOUS(row_major_quantized_weight);
+        TORCH_CHECK(row_major_quantized_weight.dim() == 2 || row_major_quantized_weight.dim() == 3,
+                    "Invalid dim. The dim of weight should be 2 or 3");
+
+        const size_t num_experts = row_major_quantized_weight.dim() == 2 ? 1 : row_major_quantized_weight.size(0);
+        const size_t num_rows    = row_major_quantized_weight.size(-2);
+        const size_t num_cols    = row_major_quantized_weight.size(-1);
+
+        Tensor  processed_tensor = torch::zeros_like(row_major_quantized_weight);
+        int8_t* input_byte_ptr   = get_ptr<int8_t>(row_major_quantized_weight);
+        int8_t* output_byte_ptr  = get_ptr<int8_t>(processed_tensor);
+
+        auto quant_type = tensorrt_llm::kernels::cutlass_kernels::QuantType::W8_A16;
+        tensorrt_llm::kernels::cutlass_kernels::preprocess_weights_for_mixed_gemm(
+            output_byte_ptr, input_byte_ptr, {num_experts, num_rows, num_cols}, quant_type);
+
+        return processed_tensor;
+    }
 }
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("grouped_gemm", &torch_ext::grouped_gemm, "Grouped GEMM with bias");
+    m.def("preprocess_weights_for_mixed_gemm", &torch_ext::preprocess_weights_for_mixed_gemm, "Preprocess weights for mixed GEMM");
 }

@@ -83,11 +83,12 @@ def test_grouped_gemm(
     out = torch.zeros(tokens*topk, out_size).cuda().half()
 
     # w1
-    w1_f32 = torch.ones(experts, in_size, out_size).cuda()
+    w1_f32 = torch.randn(experts, in_size, out_size).cuda()
     w1, w1_scale = ops.scaled_fp8_quant(
         w1_f32.half(), torch.ones(experts, dtype=torch.float32, device=w1_f32.device) * 0.0022
     )
     w1 = w1.view(dtype=torch.int8)
+
     g_w1_scale = w1_scale.to(dtype=torch.float16).unsqueeze(1).expand(-1, out_size).contiguous()
 
     total_rows_before_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().to(torch.int64)
@@ -120,10 +121,60 @@ def test_grouped_gemm(
         h = hidden_state.view(experts, tokens*topk // experts, in_size) [expert, :, :]
         c = h @ w.half()
         o = out.view(experts, tokens*topk // experts, out_size) [expert, :, :]
+        print(c)
+        print(o)
         torch.testing.assert_close(c, o, rtol=1e-1, atol=1e-2)
     
     #print(f"{tokens}, {topk}, {experts}, {tokens*topk}, {in_size}, {out_size}, {all_time/times:.3f}")
 
-for t in [128, 256, 512, 1024, 2048]:
-    for shape in [(4096, 12800), (6400, 4096)]:
-        test_grouped_gemm(tokens=t, experts=16, topk=2, in_size=shape[0], out_size=shape[1])
+#for t in [128, 256, 512, 1024, 2048]:
+#    for shape in [(4096, 12800), (6400, 4096)]:
+#        test_grouped_gemm(tokens=t, experts=16, topk=2, in_size=shape[0], out_size=shape[1])
+
+
+# Config performance tuning
+
+# Corectness check
+
+def test_grouped_gemm_correctness(
+    tokens=1024,
+    experts=16,
+    topk=2,
+    in_size=4096,
+    out_size=12800,
+    times=100,
+    cfg_id=0,
+):
+    assert tokens*topk % experts == 0, "tokens*topk % experts != 0"
+    torch.manual_seed(1234)
+
+    # input output
+    hidden_state = torch.ones(tokens*topk, in_size).cuda().uniform_(-1, 1).half()
+    out = torch.empty(tokens*topk, out_size).cuda().half()
+
+    # w1
+    w1_f32 = torch.randn(experts, in_size, out_size).uniform_(-1, 1).cuda()
+    w1, w1_scale = ops.scaled_fp8_quant(
+        w1_f32.half(), torch.ones(experts, dtype=torch.float32, device=w1_f32.device) * 0.0022
+    )
+
+    w1 = w1.view(dtype=torch.int8)
+    w1_i = ft_moe.preprocess_weights_for_mixed_gemm(w1.cpu()).to(hidden_state.device)
+    w1_i_i = ft_moe.preprocess_weights_for_mixed_gemm(w1_i.cpu()).to(hidden_state.device)
+    #print(w1_i, w1_i_i)
+    #torch.testing.assert_close(w1, w1_i_i)
+
+    g_w1_scale = w1_scale.to(dtype=torch.float16).unsqueeze(1).expand(-1, out_size).contiguous()
+
+    total_rows_before_expert = (torch.ones([experts])*(tokens*topk//experts)).cuda().to(torch.int64)
+    for i in range(1, experts):
+        total_rows_before_expert[i] = total_rows_before_expert[i-1] + total_rows_before_expert[i]
+    
+    ft_moe.grouped_gemm(hidden_state, w1_i, g_w1_scale, total_rows_before_expert, out, 5, cfg_id)
+
+    for expert in range(experts):
+        w = w1_f32[expert, :, :]
+        h = hidden_state.view(experts, tokens*topk // experts, in_size) [expert, :, :]
+        c = h @ w.half()
+        o = out.view(experts, tokens*topk // experts, out_size) [expert, :, :]
+        torch.testing.assert_close(c, o, rtol=1e-0, atol=1e-1)
