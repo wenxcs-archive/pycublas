@@ -28,20 +28,41 @@ version = "0.1"
 project_path = os.path.dirname(__file__)
 cur_repo = Repo(os.path.dirname(__file__))
 version = version + "+" + cur_repo.head.commit.hexsha[:7]
-features = ["vllm_moe_sparse_gemm"]
+features = ["trtllm_moe_grouped_gemm"]
 ext_modules = []
 
 if cuda_arch == 800:
-    if 'vllm_moe_sparse_gemm' in features:
-        logger.info("CUDA SM80 detected -> building vllm_moe_sparse_gemm sm80 kernel.")
+    if "trtllm_moe_grouped_gemm" in features:
+        logger.info("CUDA SM80 detected -> building trtllm_moe_grouped_gemm sm80 kernel.")
+        module_name = "trtllm_moe_grouped_gemm"
+        module_folder = os.path.join(project_path, project_name, "cuda_kernels", module_name)
+        module_cutlass_path = os.path.join(module_folder, "cutlass")
+
+        if not os.path.exists(module_cutlass_path):
+            module_cutlass_repo = Repo.clone_from("https://github.com/NVIDIA/cutlass.git", module_cutlass_path)
+            module_cutlass_repo.git.checkout("7d49e6c")
+
         ext_modules.append(cpp_extension.CUDAExtension(
-                name=f"{project_name}.vllm_moe_sparse_gemm",
+                name=f"{project_name}.{module_name}",
                 sources=[
-                    f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/kernels_sm80.cu",
+                    os.path.join(module_folder, "fp16_int8_gemm_fg_scaleonly.cu"),
+                    os.path.join(module_folder, "fused_moe_gemm_launcher_sm80.cu"),
+                    os.path.join(module_folder, "cutlass_heuristic.cpp"),
+                    os.path.join(module_folder, "cutlass_preprocessors.cpp"),
+                    os.path.join(module_folder, "moe_gemm_kernels_fp16_uint8.cu"),
+                    # os.path.join(module_folder, "fpA_intB_launcher_sm90.cu"),
+                    # os.path.join(module_folder, "moe_kernels.cu"),
+                    os.path.join(module_folder, "th_moe_ops.cc"),
+                    os.path.join(module_folder, "tllmException.cpp"),
+                    os.path.join(module_folder, "logger.cpp"),
+                    os.path.join(module_folder, "stringUtils.cpp"),
                 ],
-                include_dirs=[f"{project_name}/cuda_kernels/vllm_moe_sparse_gemm/",
-                            os.path.join(cutlass_path, "tools/util/include"),
-                            os.path.join(cutlass_path, "include")],
+                include_dirs=[os.path.join(module_folder, "cutlass_extensions", "include"),
+                              os.path.join(module_folder),
+                              os.path.join(module_folder, "include"),
+                              os.path.join(module_cutlass_path, "tools/util/include"),
+                              os.path.join(module_cutlass_path, "include")
+                            ],
                 extra_link_args=[
                     "-lcuda",
                     "-lculibos",
@@ -53,10 +74,10 @@ if cuda_arch == 800:
                     "-L/usr/lib/x86_64-linux-gnu/",
                 ],
                 extra_compile_args={
-                    "cxx": ["-std=c++17", "-O3"],
+                    "cxx": ["-std=c++20", "-O3"],
                     "nvcc": [
                         "-O3",
-                        "-std=c++17",
+                        "-std=c++20",
                         "-DCUDA_ARCH=80",
                         "-gencode=arch=compute_80,code=compute_80",
                     ],
