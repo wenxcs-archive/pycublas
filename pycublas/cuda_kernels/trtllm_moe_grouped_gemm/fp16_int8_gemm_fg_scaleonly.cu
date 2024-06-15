@@ -14,6 +14,12 @@
  * limitations under the License.
  */
 
+// DISABLE Pytorch CUDAExtension Flags
+#undef __CUDA_NO_HALF_CONVERSIONS__ 
+#undef __CUDA_NO_HALF_OPERATORS__
+#undef __CUDA_NO_BFLOAT16_CONVERSIONS__
+#undef __CUDA_NO_HALF2_OPERATORS__
+
 #include "fpA_intB_gemm_template.h"
 
 namespace tensorrt_llm

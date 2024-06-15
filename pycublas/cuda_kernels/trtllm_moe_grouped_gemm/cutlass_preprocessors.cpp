@@ -14,6 +14,12 @@
  * limitations under the License.
  */
 
+// DISABLE Pytorch CUDAExtension Flags
+#undef __CUDA_NO_HALF_CONVERSIONS__ 
+#undef __CUDA_NO_HALF_OPERATORS__
+#undef __CUDA_NO_BFLOAT16_CONVERSIONS__
+#undef __CUDA_NO_HALF2_OPERATORS__
+
 #include "cutlass_preprocessors.h"
 #include "tensorrt_llm/common/assert.h"
 #include "tensorrt_llm/common/cudaBf16Wrapper.h"
