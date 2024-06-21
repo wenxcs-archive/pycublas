@@ -24,20 +24,20 @@ extern "C" __global__ void cnt_m_kernel(int64_t* m, int64_t size) {
     }
 }
 
-void cnt_m(torch::Tensor x, int y) {
-    cnt_m_kernel<<<1, 1>>>(x.data_ptr<int64_t>(), y);
+void cnt_m(torch::Tensor x, torch::Tensor y) {
+    cnt_m_kernel<<<1, 1>>>(x.data_ptr<int64_t>(), y.numel());
 }
 """
 
 cnt_m_module = load_inline(name='cnt_m_module',
-                        cpp_sources="void cnt_m(torch::Tensor x, int y);",
+                        cpp_sources="void cnt_m(torch::Tensor x, torch::Tensor y);",
                         cuda_sources=cnt_m_module_str,
                         functions=['cnt_m'])
 
 # This is to use the cuda graph
 def generate_m(m: torch.Tensor):
     c = torch.empty(1, dtype=torch.int64, device='cuda')
-    cnt_m_module.cnt_m(c, int(m.size(0)))
+    cnt_m_module.cnt_m(c, m)
     return c
 
 # reuse from moe group gemm
@@ -125,7 +125,7 @@ class AmpereFP8Linear(torch.nn.Module):
         self.scale = Parameter(s, requires_grad=False)
 
     def forward(self, act: torch.Tensor) -> torch.Tensor:
-        total_rows_before_expert = generate_m(act)
+        total_rows_before_expert = torch.tensor(act.size(0), dtype=torch.int64, device='cuda')
         cfg_id_0, cfg_id_1, _ = moe_gg_kernel_config[min(moe_gg_kernel_config.keys(), key=lambda x: abs(x - 1))]
         cfg_id = max(cfg_id_0, cfg_id_1)
         output = torch.empty(1, act.size(0), self.output_size, dtype=torch.float16, device='cuda')
