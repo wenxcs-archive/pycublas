@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
@@ -12,6 +13,32 @@ from vllm.model_executor.layers.quantization.fp8 import Fp8Config
 
 import pycublas.quant.fp8 as fp8_quant
 import pycublas.trtllm_moe_grouped_gemm as moe_kernel
+
+from torch.utils.cpp_extension import load, load_inline
+
+cnt_m_module_str = """
+extern "C" __global__ void cnt_m_kernel(int64_t* m, int64_t size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < 1) {
+        m[idx] = size;
+    }
+}
+
+void cnt_m(torch::Tensor x, int y) {
+    cnt_m_kernel<<<1, 1>>>(x.data_ptr<int64_t>(), y);
+}
+"""
+
+cnt_m_module = load_inline(name='cnt_m_module',
+                        cpp_sources="void cnt_m(torch::Tensor x, int y);",
+                        cuda_sources=cnt_m_module_str,
+                        functions=['cnt_m'])
+
+# This is to use the cuda graph
+def generate_m(m: torch.Tensor):
+    c = torch.empty(1, dtype=torch.int64, device='cuda')
+    cnt_m_module.cnt_m(c, int(m.size(0)))
+    return c
 
 # reuse from moe group gemm
 moe_gg_kernel_config = {
@@ -80,6 +107,10 @@ class AmpereFP8Linear(torch.nn.Module):
         self.weight = Parameter(torch.empty(input_size, output_size, dtype=torch.int8, device='cuda'), requires_grad=False)
         self.scale = Parameter(torch.empty(1, output_size, dtype=torch.float16, device='cuda'), requires_grad=False)
 
+        set_weight_attrs(self.weight, {
+            "weight_loader": self.weight_loader,
+        })
+
         self.input_size = input_size
         self.output_size = output_size
     
@@ -94,7 +125,7 @@ class AmpereFP8Linear(torch.nn.Module):
         self.scale = Parameter(s, requires_grad=False)
 
     def forward(self, act: torch.Tensor) -> torch.Tensor:
-        total_rows_before_expert = torch.tensor([act.size(0)], dtype=torch.int64, device='cuda')
+        total_rows_before_expert = generate_m(act)
         cfg_id_0, cfg_id_1, _ = moe_gg_kernel_config[min(moe_gg_kernel_config.keys(), key=lambda x: abs(x - 1))]
         cfg_id = max(cfg_id_0, cfg_id_1)
         output = torch.empty(1, act.size(0), self.output_size, dtype=torch.float16, device='cuda')
@@ -109,3 +140,7 @@ class AmpereFP8Linear(torch.nn.Module):
         if act_dtype is not None:
             output = output.to(dtype=act_dtype)
         return output
+    
+    # This is to fit vllm model executor
+    def weight_loader(self, param: Parameter, loaded_weight: torch.Tensor):
+        self.import_weight_from(loaded_weight.view(loaded_weight.size(0), -1).t())
