@@ -57,7 +57,7 @@ moe_gg_kernel_config = {
 }
 
 
-class AmpereFP8Linear(LinearBase):
+class AmpereFP8Linear(torch.nn.Module):
     """FP8 linear layer.
 
     Args:
@@ -71,33 +71,28 @@ class AmpereFP8Linear(LinearBase):
 
     def __init__(self,
                  input_size: int,
-                 output_size: int,
-                 bias: bool = False,
-                 skip_bias_add: bool = False,
-                 params_dtype: Optional[torch.dtype] = None,
-                 quant_config: Optional[QuantizationConfig] = None):
-        super().__init__(input_size, output_size, skip_bias_add, params_dtype,
-                         quant_config)
-
-        assert self.quant_method is not None
-        self.use_fp8 = isinstance(quant_config, Fp8Config)
-        assert self.use_fp8, "Only FP8 quantization is supported for Ampere FP8 linear layer."
+                 output_size: int
+                 ):
+        super().__init__()
         self.is_sm80 = fp8_quant.is_sm80()
         assert self.is_sm80, "Only SM80 is supported for Ampere FP8 linear layer."
-        assert bias is False, "Bias is not supported for Ampere FP8 linear layer."
 
-        self.weight = Parameter(torch.Tensor(input_size, output_size, dtype=torch.int8, device='cuda'), requires_grad=False)
-        self.scale = Parameter(torch.Tensor(1, output_size, dtype=torch.float16, device='cuda'), requires_grad=False)
+        self.weight = Parameter(torch.empty(input_size, output_size, dtype=torch.int8, device='cuda'), requires_grad=False)
+        self.scale = Parameter(torch.empty(1, output_size, dtype=torch.float16, device='cuda'), requires_grad=False)
+
+        self.input_size = input_size
+        self.output_size = output_size
     
-    def import_weight_from_fp16(self, weight: torch.Tensor):
+    def import_weight_from(self, weight: torch.Tensor):
+        assert weight.dtype == torch.float16 or weight.dtype == torch.bfloat16, "Weight must be [b]float16, but got {}".format(weight.dtype)
         w, s = fp8_quant.ops.scaled_fp8_quant(weight)
-        w, s = fp8_quant.preproces_fp8_linear_weights(w, s, self.quant_method)
+        w, s = fp8_quant.preproces_fp8_linear_weights(w, s)
 
         self.weight = Parameter(w, requires_grad=False)
         self.scale = Parameter(s, requires_grad=False)
 
     def forward(self, act: torch.Tensor) -> torch.Tensor:
-        total_rows_before_expert = torch.tensor([act.size(0)], dtype=torch.int32, device='cuda')
+        total_rows_before_expert = torch.tensor([act.size(0)], dtype=torch.int64, device='cuda')
         cfg_id_0, cfg_id_1, _ = moe_gg_kernel_config[min(moe_gg_kernel_config.keys(), key=lambda x: abs(x - 1))]
         cfg_id = max(cfg_id_0, cfg_id_1)
         output = torch.empty(act.size(0), self.weight.size(1), dtype=torch.float16, device='cuda')
@@ -106,18 +101,9 @@ class AmpereFP8Linear(LinearBase):
         if act.dtype != torch.float16:
             act_dtype = act.dtype
             act = act.to(dtype=torch.float16)
+
         moe_kernel.grouped_gemm(act, self.weight.unsqueeze(0), self.scale, total_rows_before_expert, output, 5, cfg_id)
         output.squeeze_(0)
         if act_dtype is not None:
             output = output.to(dtype=act_dtype)
         return output
-
-
-    def extra_repr(self) -> str:
-        s = f"in_features={self.input_size}"
-        s += f", output_features={self.output_size}"
-        s += f", bias={self.bias is not None}"
-        return s
-    
-    def quant_method(self):
-        return self.quant_method

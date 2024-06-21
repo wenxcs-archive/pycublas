@@ -17,11 +17,11 @@ def remove_subnormal_fp8(tensor, verbose=False):
     return tensor
 
 def preproces_fp8_linear_weights(w, scale):
-    assert w.dtype == torch.float16, "Weights must be fp16"
+    assert w.dtype == torch.float8_e4m3fn, "Weights must be float8_e4m3fn, but got {}".format(w.dtype)
     assert scale.numel() == 1, "Only one scale value is supported"
     device = w.device
     # Preprocess weights for mixed gemm
-    w = moe_kernel.preprocess_weights_for_mixed_gemm(w.view(torch.int8).transpose(1,2).contiguous().cpu()).to(device)
+    w = moe_kernel.preprocess_weights_for_mixed_gemm(w.unsqueeze(0).view(torch.int8).transpose(1,2).contiguous().cpu()).to(device)
     # Preprocess scale for mixed gemm
     w_scale = scale.to(dtype=torch.float16).reshape(1).unsqueeze(1).expand(-1, w.size(-1)).contiguous()
     return w, w_scale
