@@ -1,3 +1,10 @@
+try:
+    import loguru
+    import git
+except:
+    import os
+    os.system("pip install loguru gitpython pytest")
+
 import os
 import shutil
 from setuptools import setup, find_packages
@@ -26,8 +33,11 @@ if shutil.which("ninja") is None:
 project_name = "pycublas"
 version = "0.1"
 project_path = os.path.dirname(__file__)
-cur_repo = Repo(os.path.dirname(__file__))
-version = version + "+" + cur_repo.head.commit.hexsha[:7]
+try :
+    cur_repo = Repo(os.path.dirname(__file__))
+    version = version + "+" + cur_repo.head.commit.hexsha[:7]
+except:
+    pass
 features = ["trtllm_moe_grouped_gemm"]
 ext_modules = []
 
