@@ -85,6 +85,8 @@ class AmpereFP8Linear(torch.nn.Module):
     
     def import_weight_from(self, weight: torch.Tensor):
         assert weight.dtype == torch.float16 or weight.dtype == torch.bfloat16, "Weight must be [b]float16, but got {}".format(weight.dtype)
+        assert weight.size(0) == self.input_size, "Input size mismatch, expect {}, but got {}".format(self.input_size, weight.size(0))
+        assert weight.size(1) == self.output_size, "Output size mismatch, expect {}, but got {}".format(self.output_size, weight.size(1))
         w, s = fp8_quant.ops.scaled_fp8_quant(weight)
         w, s = fp8_quant.preproces_fp8_linear_weights(w, s)
 
@@ -95,14 +97,14 @@ class AmpereFP8Linear(torch.nn.Module):
         total_rows_before_expert = torch.tensor([act.size(0)], dtype=torch.int64, device='cuda')
         cfg_id_0, cfg_id_1, _ = moe_gg_kernel_config[min(moe_gg_kernel_config.keys(), key=lambda x: abs(x - 1))]
         cfg_id = max(cfg_id_0, cfg_id_1)
-        output = torch.empty(act.size(0), self.weight.size(1), dtype=torch.float16, device='cuda')
+        output = torch.empty(1, act.size(0), self.output_size, dtype=torch.float16, device='cuda')
         
         act_dtype = None
         if act.dtype != torch.float16:
             act_dtype = act.dtype
             act = act.to(dtype=torch.float16)
 
-        moe_kernel.grouped_gemm(act, self.weight.unsqueeze(0), self.scale, total_rows_before_expert, output, 5, cfg_id)
+        moe_kernel.grouped_gemm(act, self.weight, self.scale, total_rows_before_expert, output, 5, cfg_id)
         output.squeeze_(0)
         if act_dtype is not None:
             output = output.to(dtype=act_dtype)
