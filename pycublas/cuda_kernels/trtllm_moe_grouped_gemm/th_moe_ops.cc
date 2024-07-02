@@ -168,15 +168,12 @@ namespace torch_ext
         const int num_rows = activations.size(0);
         const int64_t gemm_k = activations.size(1);
         const int64_t gemm_n = weights.size(-1);
-        const int64_t experts = weights.size(0);
 
         assert(gemm_k >= 128 / cutlass::sizeof_bits<WeightType>::value);
         assert(gemm_k% (128 / cutlass::sizeof_bits<WeightType>::value) == 0);
         assert(gemm_n % (128 / cutlass::sizeof_bits<WeightType>::value) == 0);
 
         assert(activations.size(1) == weights.size(1));
-        assert(experts == weight_scales.size(0));
-        assert(total_rows_before_expert.dtype() == torch::kInt64);
 
         tensorrt_llm::kernels::cutlass_kernels::CutlassFpAIntBGemmRunner<half, uint8_t, cutlass::WeightOnlyQuantOp::PER_COLUMN_SCALE_ONLY> gemm_runner;
 
@@ -185,11 +182,20 @@ namespace torch_ext
         T *weight_scale_ptr = get_ptr<T>(weight_scales);
         T *res_ptr = get_ptr<T>(res);
 
+        // This is only safe for processes
+        void* workspace = nullptr;
         auto workspace_size = gemm_runner.getWorkspaceSize(num_rows, gemm_n, gemm_k);
+
+        cudaMalloc(&workspace, workspace_size);
+
         auto configs = gemm_runner.getConfigs();
 
-        void* workspace;
-        cudaMalloc(&workspace, workspace_size);
+        if (config_id >= configs.size())
+        {
+            std::string err_msg = "Invalid config_id " + std::to_string(config_id);
+            TORCH_CHECK(false, err_msg);
+        }
+
         auto& config = configs[config_id];
 
         gemm_runner.gemm(
@@ -204,10 +210,16 @@ namespace torch_ext
             (char*)workspace,
             workspace_size,
             stream);
-        
-        cudaFree(workspace);
 
+        cudaFree(workspace);
+        
         return res;
+    }
+
+    int get_gemm_configs_count()
+    {
+        tensorrt_llm::kernels::cutlass_kernels::CutlassFpAIntBGemmRunner<half, uint8_t, cutlass::WeightOnlyQuantOp::PER_COLUMN_SCALE_ONLY> gemm_runner;
+        return gemm_runner.getConfigs().size();
     }
 
     Tensor gemm(Tensor activations, Tensor weights, Tensor weight_scales, Tensor out, int config_id = 0)
@@ -245,4 +257,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
     m.def("grouped_gemm", &torch_ext::grouped_gemm, "Grouped GEMM with bias");
     m.def("gemm", &torch_ext::gemm, "GEMM with bias");
     m.def("preprocess_weights_for_mixed_gemm", &torch_ext::preprocess_weights_for_mixed_gemm, "Preprocess weights for mixed GEMM");
+    m.def("get_gemm_configs_count", &torch_ext::get_gemm_configs_count, "Get number of configs");
 }

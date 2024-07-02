@@ -16,9 +16,12 @@ def test_ampere_fp8_linear():
     fp8linear = AmpereFP8Linear(input_size=4096, output_size=2048)
     # After create fp8linear, we need to import the weight, no quant flag is required here.
     fp8linear.import_weight_from(w)
+
+    cfg = fp8linear.tune_forward(act)
+
+    print("cfg: ", cfg)
+
     output_fp8 = fp8linear(act)
     output_ref = torch.matmul(act, w)
 
-    print("output_fp8: ", output_fp8)
-    print("output_ref: ", output_ref)
     torch.testing.assert_close(output_fp8, output_ref, rtol=1e-0, atol=1e-1)

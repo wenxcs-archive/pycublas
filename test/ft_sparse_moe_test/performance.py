@@ -166,6 +166,4 @@ def test_grouped_gemm_correctness(
         h = hidden_state.view(experts, tokens*topk // experts, in_size) [expert, :, :]
         c = h @ w.half()
         o = out.view(experts, tokens*topk // experts, out_size) [expert, :, :]
-        print(c)
-        print(o)
         torch.testing.assert_close(c, o, rtol=1e-0, atol=1e-1)
