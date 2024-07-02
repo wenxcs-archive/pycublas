@@ -19,6 +19,6 @@ def test_ampere_fp8_linear():
     output_fp8 = fp8linear(act)
     output_ref = torch.matmul(act, w)
 
-    #print("output_fp8: ", output_fp8)
-    #print("output_ref: ", output_ref)
+    print("output_fp8: ", output_fp8)
+    print("output_ref: ", output_ref)
     torch.testing.assert_close(output_fp8, output_ref, rtol=1e-0, atol=1e-1)

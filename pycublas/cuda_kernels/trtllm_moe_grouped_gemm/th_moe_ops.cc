@@ -14,6 +14,8 @@
 #include "cutlass_extensions/gemm_configs.h"
 #include "cutlass_preprocessors.h"
 
+#include "fpA_intB_gemm.h"
+
 using torch::Tensor;
 
 #define CHECK_TYPE(x, st) TORCH_CHECK(x.scalar_type() == st, "Inconsistency of Tensor type: " #x)
@@ -157,11 +159,90 @@ namespace torch_ext
 
         return processed_tensor;
     }
+
+    template <typename T, typename WeightType>
+    Tensor gemm_helper(Tensor activations, Tensor weights, Tensor weight_scales, Tensor res, int config_id)
+    {
+        const at::ScalarType _st = activations.scalar_type();
+        auto stream = at::cuda::getCurrentCUDAStream().stream();
+        const int num_rows = activations.size(0);
+        const int64_t gemm_k = activations.size(1);
+        const int64_t gemm_n = weights.size(-1);
+        const int64_t experts = weights.size(0);
+
+        assert(gemm_k >= 128 / cutlass::sizeof_bits<WeightType>::value);
+        assert(gemm_k% (128 / cutlass::sizeof_bits<WeightType>::value) == 0);
+        assert(gemm_n % (128 / cutlass::sizeof_bits<WeightType>::value) == 0);
+
+        assert(activations.size(1) == weights.size(1));
+        assert(experts == weight_scales.size(0));
+        assert(total_rows_before_expert.dtype() == torch::kInt64);
+
+        tensorrt_llm::kernels::cutlass_kernels::CutlassFpAIntBGemmRunner<half, uint8_t, cutlass::WeightOnlyQuantOp::PER_COLUMN_SCALE_ONLY> gemm_runner;
+
+        T *act_ptr = get_ptr<T>(activations);
+        WeightType *wt_ptr = get_ptr<WeightType>(weights);
+        T *weight_scale_ptr = get_ptr<T>(weight_scales);
+        T *res_ptr = get_ptr<T>(res);
+
+        auto workspace_size = gemm_runner.getWorkspaceSize(num_rows, gemm_n, gemm_k);
+        auto configs = gemm_runner.getConfigs();
+
+        void* workspace;
+        cudaMalloc(&workspace, workspace_size);
+        auto& config = configs[config_id];
+
+        gemm_runner.gemm(
+            (void*)act_ptr,
+            (void*)wt_ptr,
+            (void*)weight_scale_ptr,
+            (void*)res_ptr,
+            (int64_t)num_rows,
+            (int64_t)gemm_n,
+            (int64_t)gemm_k,
+            config,
+            (char*)workspace,
+            workspace_size,
+            stream);
+        
+        cudaFree(workspace);
+
+        return res;
+    }
+
+    Tensor gemm(Tensor activations, Tensor weights, Tensor weight_scales, Tensor out, int config_id = 0)
+    {
+        const at::ScalarType _st = activations.scalar_type();
+        CHECK_INPUT(activations, _st);
+        CHECK_INPUT(weight_scales, _st);
+
+        switch (_st)
+        {
+        case at::ScalarType::Half:
+        {
+            if (weights.scalar_type() == torch::kInt8)
+            {
+                CHECK_INPUT(weights, torch::kInt8);
+                return gemm_helper<__half, uint8_t>(
+                    activations, weights, weight_scales, out, config_id);
+            }
+            else
+            {
+                std::string err_msg = "Unsupported weight type " + std::string(at::toString(weights.scalar_type()));
+                TORCH_CHECK(false, err_msg);
+            }
+            break;
+        }
+        default:
+            TORCH_CHECK(false, "Incompatible tensor type for grouped gemm bias");
+        }
+    }
 }
 
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     m.def("grouped_gemm", &torch_ext::grouped_gemm, "Grouped GEMM with bias");
+    m.def("gemm", &torch_ext::gemm, "GEMM with bias");
     m.def("preprocess_weights_for_mixed_gemm", &torch_ext::preprocess_weights_for_mixed_gemm, "Preprocess weights for mixed GEMM");
 }
