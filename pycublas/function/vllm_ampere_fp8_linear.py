@@ -55,9 +55,11 @@ class AmpereFP8Linear(torch.nn.Module):
         self.input_size = input_size
         self.output_size = output_size
         self.cfg = dict()
+        self.default_cfg = 70
     
-    def import_cfg_from(self, cfg: dict):
+    def import_cfg_from(self, cfg: dict, default_cfg: int = 70):
         self.cfg = cfg
+        self.default_cfg = default_cfg
     
     def import_weight_from(self, weight: torch.Tensor):
         assert weight.dtype == torch.float16 or weight.dtype == torch.bfloat16, "Weight must be [b]float16, but got {}".format(weight.dtype)
@@ -77,7 +79,11 @@ class AmpereFP8Linear(torch.nn.Module):
             act_dtype = act.dtype
             act = act.to(dtype=torch.float16)
 
-        cfg_id = self.cfg.get((act.size(0), self.output_size, self.input_size), 0)
+        if (self.input_size, self.output_size) not in self.cfg:
+            cfg_id = self.default_cfg
+        else:
+            cfg_id = self.cfg[(self.input_size, self.output_size)].get(act.size(0), (self.default_cfg, -1))[0]
+
         moe_kernel.gemm(act, self.weight, self.scale, output, cfg_id)
 
         if act_dtype is not None:
@@ -88,7 +94,9 @@ class AmpereFP8Linear(torch.nn.Module):
         output = torch.empty(act.size(0), self.output_size, dtype=torch.float16, device='cuda')
 
         if cfg_cache is None:
-            cfg_cache = {} # (m, n, k) -> (cfg_id, time)
+            cfg_cache = {(self.input_size, self.output_size):{}} # (m, n, k) -> (cfg_id, time)
+        elif (self.input_size, self.output_size) not in cfg_cache:
+            cfg_cache[(self.input_size, self.output_size)] = {}
         
         act_dtype = None
         if act.dtype != torch.float16:
@@ -109,10 +117,11 @@ class AmpereFP8Linear(torch.nn.Module):
                     elapsed_time_ms = start.elapsed_time(end)
                     if j >= 10:
                         all_time += elapsed_time_ms
-                old_all_time = cfg_cache.get((act.size(0), self.output_size, self.input_size), (cfg_id, -1))[1]
+                old_all_time = cfg_cache[(self.input_size, self.output_size)].get(act.size(0), (cfg_id, -1))[1]
                 all_time /= times
                 if all_time < old_all_time or old_all_time < 0:
-                    cfg_cache[(act.size(0), self.output_size, self.input_size)] = (cfg_id, all_time)
+                    cfg_cache[(self.input_size, self.output_size)][act.size(0)] = (cfg_id, all_time)
+
             except Exception as e:
                 continue
 
