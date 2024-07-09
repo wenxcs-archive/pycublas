@@ -11,18 +11,21 @@ def test_ampere_fp8_linear():
 
     cfg_cache = {}
     # Weight: fp16/bf16, shape is [hidden_size, output_size](Not same as normal linear layer)
-    w_0 = torch.ones(3072, 16384, dtype=torch.float16).uniform_(-0.1, 0.1).cuda()
-    w_1 = torch.ones(8192, 3072, dtype=torch.float16).uniform_(-0.1, 0.1).cuda()
-    fp8linear_0 = AmpereFP8Linear(input_size=3072, output_size=16384)
-    fp8linear_1 = AmpereFP8Linear(input_size=8192, output_size=3072)
+    #w_0 = torch.ones(3072, 16384, dtype=torch.float16).uniform_(-0.1, 0.1).cuda()
+    #w_1 = torch.ones(8192, 3072, dtype=torch.float16).uniform_(-0.1, 0.1).cuda()
+    w_0 = torch.ones(4096, 12800, dtype=torch.float16).uniform_(-0.1, 0.1).cuda()
+    w_1 = torch.ones(12800//2, 4096, dtype=torch.float16).uniform_(-0.1, 0.1).cuda()
+
+    fp8linear_0 = AmpereFP8Linear(input_size=4096, output_size=12800)
+    fp8linear_1 = AmpereFP8Linear(input_size=12800//2, output_size=4096)
     # After create fp8linear, we need to import the weight, no quant flag is required here.
     fp8linear_0.import_weight_from(w_0)
     fp8linear_1.import_weight_from(w_1)
 
-    for m in list(range(256, 1024, 256)):
+    for m in [1] + list(range(256, 1024, 256)):
         # Activation: bf16/fp16 as input, but use fp16 inside the layer, the output's dtype will be same as input
-        act_0 = torch.ones(m, 3072, dtype=torch.float16).uniform_(-0.1, 0.1).cuda()
-        act_1 = torch.ones(m, 8192, dtype=torch.float16).uniform_(-0.1, 0.1).cuda()
+        act_0 = torch.ones(m, 4096, dtype=torch.float16).uniform_(-0.1, 0.1).cuda()
+        act_1 = torch.ones(m, 12800//2, dtype=torch.float16).uniform_(-0.1, 0.1).cuda()
         cfg_cache = fp8linear_0.tune_forward(act_0, cfg_cache)
         cfg_cache = fp8linear_1.tune_forward(act_1, cfg_cache)
     

@@ -107,16 +107,18 @@ class AmpereFP8Linear(torch.nn.Module):
             try:
                 all_time = 0.0
                 times = 100
+                start = torch.cuda.Event(enable_timing=True)
+                end = torch.cuda.Event(enable_timing=True)
+                start.record()
                 for j in range(10 + times):
-                    start = torch.cuda.Event(enable_timing=True)
-                    end = torch.cuda.Event(enable_timing=True)
-                    start.record()
                     moe_kernel.gemm(act, self.weight, self.scale, output, cfg_id)
-                    end.record()
-                    torch.cuda.synchronize()
-                    elapsed_time_ms = start.elapsed_time(end)
-                    if j >= 10:
-                        all_time += elapsed_time_ms
+                end.record()
+                torch.cuda.synchronize()
+                elapsed_time_ms = start.elapsed_time(end)
+                #if j >= 10:
+                #    all_time += elapsed_time_ms
+                all_time = elapsed_time_ms
+                times += 10
                 old_all_time = cfg_cache[(self.input_size, self.output_size)].get(act.size(0), (cfg_id, -1))[1]
                 all_time /= times
                 if all_time < old_all_time or old_all_time < 0:
