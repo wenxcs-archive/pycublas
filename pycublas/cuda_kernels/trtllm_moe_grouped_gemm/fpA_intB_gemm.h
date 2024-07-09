@@ -84,7 +84,7 @@ public:
     virtual std::vector<tkc::CutlassGemmConfig> getConfigs() const = 0;
 
 protected:
-    static constexpr int SPLIT_K_LIMIT = 7;
+    static constexpr int SPLIT_K_LIMIT = 16;
     static constexpr int MIN_M_TILE = 16;
     static constexpr int MIN_N_TILE = 64;
 };
